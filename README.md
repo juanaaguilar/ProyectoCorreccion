@@ -29,6 +29,8 @@ y los puntos los atraviesan al caer por gravedad para ocupar el siguiente casill
 
 - <span style="color:#fc7f40">📌 **Mecánica de agua.**</span> El agua se expande al eliminar puntos junto a ella. Además, un nivel puede tener como objetivo extender el agua una cierta cantidad de casilleros.
 
+- <span style="color:#fc7f40">📌**Finalización del juego**</span> El juego debe finalizar cuando se cumplan los objetivos del nivel, o cuando no existan más jugadas posibles. En ambos casos, debe mostrarse un mensaje indicando el resultado (victoria o derrota).
+
 **Importante**: para cada uno de los requerimientos anteriores se debe imitar fielmente el comportamiento de la aplicación. Ante cualquier duda acerca de algún comportamiento específico, consultar con el docente asignado.
 
 ### Implementación

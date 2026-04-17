@@ -8,6 +8,8 @@
 .header {
   margin: 10px;
   color: white;
+  display: flex;
+  gap: 20px;
 }
 
 .gameInfo {

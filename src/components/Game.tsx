@@ -11,6 +11,7 @@ function Game() {
   const [pengine, setPengine] = useState<any>(null);
   const [grid, setGrid] = useState<Grid | null>(null);
   const [numOfColumns, setNumOfColumns] = useState<number | null>(null);
+  const [moves, setMoves] = useState<number | null>(null);
   const [objectives, setObjectives] = useState<Objectives>({});
   const [path, setPath] = useState<number[]>([]);
   const [waiting, setWaiting] = useState(false);
@@ -35,10 +36,11 @@ function Game() {
 
 
   async function initGame() {
-    const queryS = 'init(Grid, NumOfColumns, Goals)';
+    const queryS = 'init(Grid, NumOfColumns, Goals, Moves)';
     const response = await pengine!.query(queryS);
     setGrid(response['Grid']);
     setNumOfColumns(response['NumOfColumns']);
+    setMoves(response['Moves']);
     const objectives: Objectives = {};
     response['Goals'].forEach(([block, value]: [CellContent, number]) => {
       objectives[block] = value;
@@ -85,6 +87,7 @@ function Game() {
     const response = await pengine.query(queryS);
     setPath([]);
     if (response) {
+      setMoves(moves! - 1);
       animateEffects(response['Effects']);
     } else {
       console.log("Prolog query failed")
@@ -142,7 +145,12 @@ function Game() {
   return (
     <div className={styles.game}>
       <div className={styles.header}>
-        {Object.entries(historyObjectives ?? objectives).map(([key, value]) => `${key} ${value}`).join(' | ')}
+        <div>
+          {`Moves ${moves}`}
+        </div>
+        <div>
+          {Object.entries(historyObjectives ?? objectives).map(([key, value]) => `${key} ${value}`).join(' | ')}
+        </div>
       </div>
       <Board
         grid={historyGrid ?? grid}

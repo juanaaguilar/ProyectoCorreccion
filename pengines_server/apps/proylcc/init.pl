@@ -1,12 +1,13 @@
-:- module(init, [ init/3 ]).
+:- module(init, [ init/4 ]).
 
 /**
- * init(-Grid, -NumOfColumns, -Goals).
+ * init(-Grid, -NumOfColumns, -Goals, -Moves).
  * 
  * Predicado especificando la grilla inicial, que será mostrada al comienzo del juego, donde:
  * - Grid es una lista plana con las celdas que conforman la grilla
  * - NumOfColumns es la cantidad de columnas (determina las dimensiones)
  * - Goals es una lista con los objetivos del juego, por ejemplo, [[r, 10], [g, 7], [p, 15], [~, 21]] (recolectar 10 rojos, 7 verdes, etc).
+ * - Moves es la cantidad de movimientos disponibles para el jugador.
  * 
  * Representación de contenido de una celda:
  * r = red
@@ -37,4 +38,4 @@ init([
 	[c, ~], [y, ~], [y, ~], [y, ~], [y, ~], [-], [-], [-],
 	% Fila 8 (índices 64-71)
 	[-], [y, ~], [y, ~], [y], [-], [-], [-], [-]
-], 8, [[r, 10], [g, 10], [p, 15], [~, 21]]).
+], 8, [[r, 10], [g, 10], [p, 15], [~, 21]], 35).
