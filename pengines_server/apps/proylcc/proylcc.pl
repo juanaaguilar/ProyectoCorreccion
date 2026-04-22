@@ -12,6 +12,24 @@
 % donde Effects es una lista de effect(ResultingGrid, AuxiliaryInfo) 
 % donde AuxiliaryInfo es una lista de información adicional que se quiera devolver 
 % para la UI (por ejemplo, los objetivos cumplidos, o qué celdas se vieron afectadas, etc).
+connect(Grid, _NumOfColumns, Path, [effect(NewGrid, [achieved([[~, N]])])]) :-
+    list_to_set(Path, PathSet),
+    replace_with_water(Grid, PathSet, 0, NewGrid, 0, N).
+
+writeln('Grilla inicial cargada. ¡Listo para jugar!').
+
+replace_with_water([], _, _, [], N, N).
+replace_with_water([Cell|Rest], PathSet, Index, [NewCell|NewRest], Acc, N) :-
+    ( memberchk(Index, PathSet) ->
+        NewCell = [-],
+        Acc1 is Acc + 1
+    ;
+        NewCell = Cell,
+        Acc1 is Acc
+    ),
+    Index1 is Index + 1,
+    replace_with_water(Rest, PathSet, Index1, NewRest, Acc1, N).
+
 
 connect(
 	[

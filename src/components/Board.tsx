@@ -35,7 +35,7 @@ function Board({ grid, numOfColumns, path, onPathChange, onDone, readonly }: Boa
         if (!isAdyacent(pos, path[path.length - 1], numOfColumns)) { // Ignore hovering non-adyacent squares.
             return;
         }
-        if (path.length > 1 && pos === path[path.length - 2]) {  // Remove the last square in the path if returned to the previous one                
+        if (path.length > 1 && pos === path[path.length - 2]) {  // RETROCESO: Remove the last square in the path if returned to the previous one                
             onPathChange(path.slice(0, path.length - 1));
         } else if (path.length > 2 && path.slice(0, path.length - 2).includes(path[path.length - 1])) { // Ignore hovering a square if you already got a closed path
             return;
