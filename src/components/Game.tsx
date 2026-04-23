@@ -80,6 +80,7 @@ function Game() {
           RGrids
         ).
     */
+   try{
     const gridS = JSON.stringify(grid).replaceAll('"', '');
     const pathS = JSON.stringify(path);
     const queryS = "connect(" + gridS + "," + numOfColumns + "," + pathS + ", Effects)";
@@ -93,8 +94,11 @@ function Game() {
       console.log("Prolog query failed")
       setWaiting(false);
     }
+  } catch (error) {
+    console.error("Error while executing Prolog query:", error);
+    setWaiting(false);
   }
-
+ }
   /**
    * Displays each grid of the sequence as the current grid in 1sec intervals, and considers the other effect information.
    * @param effects The list of effects to be animated.

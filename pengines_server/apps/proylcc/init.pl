@@ -15,13 +15,14 @@
  * p = purple
  * y = yellow
  * g = green
+ * e = empty (celda vacía, sin punto)
  * - = obstáculo (celda no jugable)
  * ~ = agua
  */
 
 init([
 	% Fila 0 (índices 0-7)
-	[-], [-], [c], [p], [-], [-], [-], [-],
+	[r], [-], [c], [p], [-], [-], [-], [-],
 	% Fila 1 (índices 8-15)
 	[c], [y], [g], [p], [r], [-], [-], [-],
 	% Fila 2 (índices 16-23)

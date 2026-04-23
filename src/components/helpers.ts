@@ -15,7 +15,10 @@ export function isAdyacent(posA: number, posB: number, numOfColumns: number) {
 }
 
 export function connectable(posA: number, posB: number, grid: Grid): boolean {
-    return grid[posA].some(value => isConnectableDot(value) && grid[posB].includes(value));
+    // 2. Normalizamos el dato para que SIEMPRE sea un arreglo
+    const cellDataA = Array.isArray(grid[posA]) ? grid[posA] : [grid[posA]];
+    const cellDataB = Array.isArray(grid[posB]) ? grid[posB] : [grid[posB]];
+    return cellDataA.some(value => isConnectableDot(value) && cellDataB.includes(value));
 }
 
 export function isConnectableDot(value: CellContent): boolean {

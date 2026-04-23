@@ -29,7 +29,12 @@ function Board({ grid, numOfColumns, path, onPathChange, onDone, readonly }: Boa
         if (path.length === 0) {    // Ignore if not collecting a path.
             return;
         }
-        if (!grid[pos].some(content => isConnectableDot(content))) {    // Ignore hovering squares with no dot.
+        if(!grid[pos]){
+            return;
+        }
+        // Normalizamos el dato para que SIEMPRE sea un arreglo
+        const cellData = Array.isArray(grid[pos]) ? grid[pos] : [grid[pos]];
+        if (!cellData.some(content => isConnectableDot(content))) {    // Ignore hovering squares with no dot.
             return;
         }
         if (!isAdyacent(pos, path[path.length - 1], numOfColumns)) { // Ignore hovering non-adyacent squares.
