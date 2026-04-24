@@ -20,8 +20,8 @@ connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved(Achievements)])]) :
     contar_color(Grid, Color, NColor),
     interior_del_lazo(Path, NumOfColumns, Grid, Interior),
     expandir_agua_interior(GridSinColor, Interior, GridConAgua, 0, NAgua),
-    apply_gravity(GridConAgua, NumOfColumns, GridGravity),
-    marcar_agua(GridGravity, NumOfColumns, NewGrid, 0, NMarcado),
+    marcar_agua(GridConAgua, NumOfColumns, GridConAguaMarcada, 0, NMarcado),
+    apply_gravity(GridConAguaMarcada, NumOfColumns, NewGrid),
     NTotal is NAgua + NMarcado,
     ( NTotal > 0 ->
         Achievements = [[~, NTotal], [Color, NColor]]
@@ -34,11 +34,13 @@ connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved(Achievements)])]) :
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved(Achievements)])]) :-
+    \+ es_path_cerrado(Path, NumOfColumns),
+    !,
     list_to_set(Path, PathSet),
     eliminar_camino(Grid, PathSet, 0, GridSinCamino, 0, _N),
     contar_por_color(Grid, PathSet, ColorCounts),
-    apply_gravity(GridSinCamino, NumOfColumns, GridGravity),
-    marcar_agua(GridGravity, NumOfColumns, NewGrid, 0, NAgua),
+    marcar_agua(GridSinCamino, NumOfColumns, GridConAgua, 0, NAgua),
+    apply_gravity(GridConAgua, NumOfColumns, NewGrid),
     ( NAgua > 0 ->
         Achievements = [[~, NAgua] | ColorCounts]
     ;
@@ -73,7 +75,11 @@ color_de_celda([Color, ~], Color).
 eliminar_color([], _, _, [], N, N).
 eliminar_color([Cell|Rest], Color, Index, [NewCell|NewRest], Acc, N) :-
     ( celda_tiene_color(Cell, Color) ->
-        NewCell = [e],
+        ( tiene_agua(Cell) ->
+            NewCell = [~]
+        ;
+            NewCell = [e]
+        ),
         Acc1 is Acc + 1
     ;
         NewCell = Cell,
@@ -113,13 +119,11 @@ interior_del_lazo(Path, NumOfColumns, Grid, Interior) :-
             punto_interior(Index, PathSet, NumOfColumns, NumRows)
         ),
         Interior).
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % punto_interior(+Index, +PathSet, +NumOfColumns, +NumRows)
 % Ray casting: un punto es interior si un rayo horizontal cruza el borde
 % del lazo un número impar de veces.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 punto_interior(Index, PathSet, NumOfColumns, NumRows) :-
     Fila is Index // NumOfColumns,
     Col is Index mod NumOfColumns,
@@ -160,7 +164,11 @@ expandir_agua_interior(Grid, [_|Rest], NewGrid, Acc, N) :-
 eliminar_camino([], _, _, [], N, N).
 eliminar_camino([Cell|Rest], PathSet, Index, [NewCell|NewRest], Acc, N) :-
     ( memberchk(Index, PathSet) ->
-        NewCell = [e],
+        ( tiene_agua(Cell) ->
+            NewCell = [~]
+        ;
+            NewCell = [e]
+        ),
         Acc1 is Acc + 1
     ;
         NewCell = Cell,
@@ -254,43 +262,54 @@ process_column_group(Segment, NewCells) :-
     fill_new_points(NumEmpty, NewPoints),
     append(NewPoints, Points, NewCells).
 
-is_point_cell(Cell) :-
-    Cell \= [-],
-    Cell \= [e].
-
-available_colors([r, y, g, c, p]).
+is_point_cell(Cell) :- 
+    Cell \= [-], 
+    Cell \= [~],
+    Cell \= [e]. 
+ available_colors([r, y, g, c, p]).
 
 fill_new_points(0, []) :- !.
-fill_new_points(Count, NewPoints) :-
+fill_new_points(Count, [[Color]|Rest]) :-
     Count > 0,
     available_colors(Colors),
-    fill_new_points(Count, Colors, 0, NewPoints).
-
-fill_new_points(0, _, _, []) :- !.
-fill_new_points(Count, Colors, Index, [[Color]|Rest]) :-
-    Count > 0,
-    length(Colors, Len),
-    J is Index mod Len,
-    nth0(J, Colors, Color),
+    random_member(Color, Colors),
     Count1 is Count - 1,
-    Index1 is Index + 1,
-    fill_new_points(Count1, Colors, Index1, Rest).
+    fill_new_points(Count1, Rest).
+
+fill_agua_points(0, []) :- !.
+fill_agua_points(Count, [[Color, ~]|Rest]) :-
+    Count > 0,
+    available_colors(Colors),
+    random_member(Color, Colors),
+    Count1 is Count - 1,
+    fill_agua_points(Count1, Rest).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% marcar_agua
+% marcar_agua - flood fill hasta punto fijo
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 marcar_agua(Grid, NumOfColumns, NewGrid, Acc, NAgua) :-
     length(Grid, Len),
     NumRows is Len // NumOfColumns,
+    marcar_agua_iter(Grid, NumOfColumns, NumRows, NewGrid, Acc, NAgua).
+
+marcar_agua_iter(Grid, NumOfColumns, NumRows, NewGrid, Acc, NAgua) :-
+    marcar_agua_paso(Grid, NumOfColumns, NumRows, Grid1, Acc, Acc1),
+    ( Grid1 == Grid ->
+        NewGrid = Grid,
+        NAgua = Acc1
+    ;
+        marcar_agua_iter(Grid1, NumOfColumns, NumRows, NewGrid, Acc1, NAgua)
+    ).
+
+marcar_agua_paso(Grid, NumOfColumns, NumRows, NewGrid, Acc, NAgua) :-
     marcar_agua_indices(Grid, Grid, 0, NumOfColumns, NumRows, NewGrid, Acc, NAgua).
 
 marcar_agua_indices(_, [], _, _, _, [], N, N).
 marcar_agua_indices(GridOriginal, [Cell|Rest], Index, NumOfColumns, NumRows, [NewCell|NewRest], Acc, N) :-
-    ( es_punto_sin_agua(Cell),
+    ( Cell = [e],
       tiene_agua_adyacente(Index, GridOriginal, NumOfColumns, NumRows) ->
-        Cell = [Color],
-        NewCell = [Color, ~],
+        NewCell = [~],
         Acc1 is Acc + 1
     ;
         NewCell = Cell,
