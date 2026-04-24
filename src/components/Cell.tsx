@@ -19,7 +19,7 @@ function Cell({ value, onMouseEnter, onMouseDown }: CellProps) {
   // Si es un string como "-", lo convertimos a ["-"]
   const normalizedValue = Array.isArray(value) ? value : [value];
 
-  const content = normalizedValue.map((cellContent, i) => {
+  const content = [...normalizedValue].reverse().map((cellContent, i) => {
     switch (cellContent) {
       case "~": return <div className={styles.water} key={i} />;
       case "-": return <div className={styles.empty} key={i} />;
