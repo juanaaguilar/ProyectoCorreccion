@@ -207,20 +207,20 @@ apply_water(_, Point, FinalCell) :-
 
 %Count: numero de huecos a rellenar
 fill_new_points(0, []) :- !.
-fill_new_points(Count, NewPoints) :-
+fill_new_points(Count, [[Color]|Rest]) :-
     Count > 0,
     available_colors(Colors),
-    fill_new_points(Count, Colors, 0, NewPoints).
-
-fill_new_points(0, _, _, []) :- !.
-fill_new_points(Count, Colors, Index, [[Color]|Rest]) :-
-    Count > 0,
-    length(Colors, Len),
-    J is Index mod Len,
-    nth0(J, Colors, Color),
+    random_member(Color, Colors),
     Count1 is Count - 1,
-    Index1 is Index + 1,
-    fill_new_points(Count1, Colors, Index1, Rest).
+    fill_new_points(Count1, Rest).
+
+fill_agua_points(0, []) :- !.
+fill_agua_points(Count, [[Color, ~]|Rest]) :-
+    Count > 0,
+    available_colors(Colors),
+    random_member(Color, Colors),
+    Count1 is Count - 1,
+    fill_agua_points(Count1, Rest).
 
 % --- MÓDULO DE AGUA ---
 
