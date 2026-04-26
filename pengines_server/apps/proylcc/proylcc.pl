@@ -29,7 +29,7 @@
 %el metodo list_to_set elimina duplicados (convierte una lista en un conjunto)
 
 % Modificación de connect/4
-connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved([[~, N]])])]) :-
+connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved([[Color, ColorN], [~, WaterN]])])]) :-
     % 1. Identificar el color de la jugada
     [FirstIndex|_] = Path,
     nth0(FirstIndex, Grid, FirstCell),
@@ -38,14 +38,13 @@ connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved([[~, N]])])]) :-
     % 2. Identificar qué se elimina y qué queda atrapado adentro
     ( is_closed_loop(Path) ->
         list_to_set(Path, LoopBoundary),
-        % Calculamos qué índices quedaron encerrados en el dibujo del jugador
         find_inside_cells(Grid, NumOfColumns, LoopBoundary, InsideSet),
         
         get_all_of_color(Grid, Color, ExpandedPath),
         list_to_set(ExpandedPath, PathSet)
     ;
         list_to_set(Path, PathSet),
-        InsideSet = [] % Si no hay ciclo, no hay nada encerrado
+        InsideSet = [] 
     ),
     
     % 3. Evaluar agua
@@ -55,29 +54,39 @@ connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved([[~, N]])])]) :-
         WaterExpands = false
     ),
     
-    % 4. Procesar la grilla (Elimina el PathSet, convierte el InsideSet en bombas)
-    procesar_celdas(Grid, PathSet, InsideSet, WaterExpands, 0, GridProcesada, 0, N),
+    % 4. Procesar la grilla (Iniciamos ambos contadores en 0)
+    procesar_celdas(Grid, PathSet, InsideSet, WaterExpands, 0, GridProcesada, 0, WaterN, 0, ColorN),
     
     % 5. Aplicar la gravedad
     apply_gravity(GridProcesada, NumOfColumns, NewGrid).
-% Modificación de eliminar_camino/7 para recibir WaterExpands
-procesar_celdas([], _, _, _, _, [], N, N).
-procesar_celdas([Cell|Rest], PathSet, InsideSet, WaterExpands, Index, [NewCell|NewRest], Acc, N) :-
+
+
+% procesar_celdas(Grid, PathSet, InsideSet, WaterExpands, Index, NewGrid, AccWater, TotalWater, AccColor, TotalColor)
+procesar_celdas([], _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
+procesar_celdas([Cell|Rest], PathSet, InsideSet, WaterExpands, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
     ( memberchk(Index, PathSet) ->
         % 1. Si es del color o camino, se elimina
         determinar_celda_vacia(Cell, WaterExpands, NewCell),
-        Acc1 is Acc + 1
+        
+        % Calculamos los logros de esta celda específica
+        calcula_agua_nueva(Cell, NewCell, IncW),
+        calcula_color_eliminado(Cell, IncC),
+        
+        AccW1 is AccW + IncW,
+        AccC1 is AccC + IncC
+        
     ; memberchk(Index, InsideSet) ->
-        % 2. Si quedó atrapada, se convierte en bomba
+        % 2. Si quedó atrapada, se convierte en bomba (no suma a objetivos)
         determinar_celda_bomba(Cell, NewCell),
-        Acc1 is Acc
+        AccW1 is AccW, AccC1 is AccC
     ;
         % 3. Si no pasa nada, se queda igual
         NewCell = Cell,
-        Acc1 is Acc
+        AccW1 is AccW, AccC1 is AccC
     ),
     Index1 is Index + 1,
-    procesar_celdas(Rest, PathSet, InsideSet, WaterExpands, Index1, NewRest, Acc1, N).
+    procesar_celdas(Rest, PathSet, InsideSet, WaterExpands, Index1, NewRest, AccW1, FinalW, AccC1, FinalC).
+
 
 % Reglas para crear bombas preservando obstáculos, espacios vacíos y agua.
 determinar_celda_bomba(Cell, Cell) :- is_empty_cell(Cell), !.
@@ -196,6 +205,18 @@ apply_water(_, Point, FinalCell) :-
     strip_water(Point, [C]),     % Si la celda original NO tenía agua...
     FinalCell = [C].             % Queda el color puro.
 %%%%%%%%%%%%%%%%%%%%%%%%
+
+% --- MÓDULO DE LOGROS Y OBJETIVOS ---
+
+% Calcula si se generó agua nueva: suma 1 SOLO si la celda original NO tenía agua y la nueva SÍ tiene.
+calcula_agua_nueva(OldCell, NewCell, 1) :-
+    \+ has_water(OldCell),
+    has_water(NewCell), !.
+calcula_agua_nueva(_, _, 0).
+
+% Calcula si se eliminó un punto válido para sumar al objetivo de colores.
+calcula_color_eliminado(Cell, 1) :- is_point_cell(Cell), !.
+calcula_color_eliminado(_, 0).
 
 
 %Count: numero de huecos a rellenar

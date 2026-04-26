@@ -213,6 +213,13 @@ function Game() {
   if (grid === null) {
     return null;
   }
+  // --- CONDICIONES DE FIN DE JUEGO ---
+  // Ganamos si ya cargaron los objetivos y absolutamente todos llegaron a 0
+  const isVictory = Object.keys(objectives).length > 0 && Object.values(objectives).every((val: number | undefined) => val !== undefined && val <= 0);
+  // Perdemos si nos quedamos sin movimientos y todavía no ganamos
+  const isDefeat = moves !== null && moves <= 0 && !isVictory;
+  // El juego termina si se cumple alguna de las dos
+  const isGameOver = isVictory || isDefeat;
 
   return (
     <div className={styles.game}>
@@ -237,16 +244,32 @@ function Game() {
           Rehacer ➡️
         </button>
       </div>
-
+      
       <Board
         grid={grid}
         numOfColumns={numOfColumns!}
         path={path}
         onPathChange={onPathChange}
         onDone={onPathDone}
-        readonly={waiting}
+        readonly={waiting || (history.length > 0 && currentStep < history.length - 1) || isGameOver}
       />
+
+      {/* --- CARTEL DE FIN DE JUEGO --- */}
+      {isGameOver && (
+        <div className={styles.gameOverOverlay}>
+          <div className={styles.gameOverModal}>
+            <h2 className={styles.gameOverTitle}>
+              {isVictory ? "¡Victoria!" : "Sin turnos"}
+            </h2>
+            {/* Como initGame ya reinicia el estado y llama a Prolog, nos sirve perfecto para reiniciar */}
+            <button onClick={initGame} className={styles.restartButton}>
+              Volver a jugar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+    
   );
 }
 export default Game;
