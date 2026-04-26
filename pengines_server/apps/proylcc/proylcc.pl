@@ -7,10 +7,11 @@
 :-discontiguous proylcc:connect/4.
 :-discontiguous proylcc:is_obstacle_cell/1.
 
-% NOTA: Tenemos que ver que los puntos que eliminamos se reflejen en la interfaz, usar funcion effect.
+
 % NOTA: Los cuadrados eliminan puntos que no deberían eliminar. 
-% NOTA: Implementar funcionalidad para guardar la grilla y poder ir para atrás en las jugadas. 
-% NOTA: BORRAR COMENTARIOS, unificar nombres.
+% NOTA: Agrupar los predicados segun la funcionalidad (todos los de agua juntos, todos los de cuadrados juntos, etc)
+% NOTA: BORRAR COMENTARIOS (solo los innecesarios, no borrar los q explican que hace cada cosa), unificar nombres.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % connect(+Grid, +NumOfColumns, +Path, -Effects)
 %
@@ -179,20 +180,24 @@ rebuild_column([OriginalCell|Rest], [Point|PointsRest], [FinalCell|NewRest]) :-
 is_empty_cell([e]).
 is_empty_cell([e, ~]). % El agua vacía también cuenta como espacio vacío para la gravedad
 
-is_obstacle_cell([-]).
 
 % Un punto real es una celda que contiene un color (tenga agua o no)
-is_point_cell([C]) :- C \= e, C \= '-'.
-is_point_cell([C, ~]) :- C \= e, C \= '-'.
-is_point_cell([b]). %%reconocer bombas como puntos
-is_point_cell([b, ~]). %%reconocer bombas como puntos
+% Un punto real es aquel cuyo contenido pertenece a los colores disponibles o es una bomba
+is_point_cell([C]) :- 
+    available_colors(Colors), memberchk(C, Colors).
+is_point_cell([C, ~]) :- 
+    available_colors(Colors), memberchk(C, Colors).
+is_point_cell([b]).       % Bombas
+is_point_cell([b, ~]).    % Bombas con agua
+
 is_obstacle_cell([-]).
 
 available_colors([r, y, g, c, p]).
 
 %%%%%%%%%%%%%%%HELPERS:
 % Extrae el color base del punto, quitándole el agua si la traía arrastrando
-strip_water([C, ~], [C]) :- !.
+strip_water([C, ~], [C]) :- 
+    C \= '~', !. % Seguridad adicional
 strip_water([C], [C]).
 
 % Decide qué formato final tendrá el punto según la celda original del tablero
@@ -296,8 +301,11 @@ get_all_of_color(Grid, TargetColor, TargetIndices) :-
             TargetIndices).
 
 % Verifica si una celda contiene el color buscado (tenga agua o no).
-is_target_color([Color], Color) :- Color \= e, Color \= '-'.
-is_target_color([Color, ~], Color) :- Color \= e, Color \= '-'.
+% Usamos == para garantizar identidad estricta y evitamos variables con el mismo nombre.
+is_target_color([C], TargetColor) :- 
+    C == TargetColor.
+is_target_color([C, ~], TargetColor) :- 
+    C == TargetColor.
 
 % --- MÓDULO GEOMÉTRICO Y BOMBAS ---
 

@@ -1,6 +1,6 @@
 :- module(init, [ init/4 ]).
 
-/*NOTAA IMPORTANTE: modifiqué la cantidad de objetivos, volver a ponerlo como estaba*/
+/*NOTAA IMPORTANTE: modifiqué la cantidad de objetivos, volver a ponerlo*/
 
 /**
  * init(-Grid, -NumOfColumns, -Goals, -Moves).
@@ -41,7 +41,7 @@ init([
 	[c, ~], [y, ~], [y, ~], [y, ~], [y, ~], [-], [-], [-],
 	% Fila 8 (índices 64-71)
 	[-], [y, ~], [y, ~], [y], [-], [-], [-], [-]
-], 8, [[r, 5], [g, 5], [p, 5], [~, 10]], 3).
+], 8, [[r, 10], [g, 10], [p, 15], [~, 21]], 35).
 
 %no tocar este archivo,es solo para crear la grilla
 
