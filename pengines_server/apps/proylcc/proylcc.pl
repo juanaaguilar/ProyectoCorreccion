@@ -7,12 +7,11 @@
 :-discontiguous proylcc:connect/4.
 :-discontiguous proylcc:is_obstacle_cell/1.
 
-%	NOTA: Tenemos que hacer que los que caen debajo del obstaculo sean los mismos q estaban arriba
-% NOTA: Tenemos que ver que los puntos que eliminamos se reflejen en la interfaz, usar funcion effect
-% NOTA: Ir buscando cada nombre de la funcion y ver si los usamos 
-% NOTA: BORRAR COMENTARIOS, unificar nombres
+% NOTA: Tenemos que ver que los puntos que eliminamos se reflejen en la interfaz, usar funcion effect.
+% NOTA: Los cuadrados eliminan puntos que no deberían eliminar. 
+% NOTA: Implementar funcionalidad para guardar la grilla y poder ir para atrás en las jugadas. 
+% NOTA: BORRAR COMENTARIOS, unificar nombres.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
 % connect(+Grid, +NumOfColumns, +Path, -Effects)
 %
 % donde Effects es una lista de effect(ResultingGrid, AuxiliaryInfo) 
@@ -167,12 +166,6 @@ rebuild_column([OriginalCell|Rest], [Point|PointsRest], [FinalCell|NewRest]) :-
     apply_water(OriginalCell, Point, FinalCell),
     rebuild_column(Rest, PointsRest, NewRest).
 
-empty_cells(0, []) :- !.
-empty_cells(Count, [[e]|Rest]) :-
-    Count > 0,
-    Count1 is Count - 1,
-    empty_cells(Count1, Rest).
-
 % Actualización de identificadores básicos
 is_empty_cell([e]).
 is_empty_cell([e, ~]). % El agua vacía también cuenta como espacio vacío para la gravedad
@@ -213,14 +206,6 @@ fill_new_points(Count, [[Color]|Rest]) :-
     random_member(Color, Colors),
     Count1 is Count - 1,
     fill_new_points(Count1, Rest).
-
-fill_agua_points(0, []) :- !.
-fill_agua_points(Count, [[Color, ~]|Rest]) :-
-    Count > 0,
-    available_colors(Colors),
-    random_member(Color, Colors),
-    Count1 is Count - 1,
-    fill_agua_points(Count1, Rest).
 
 % --- MÓDULO DE AGUA ---
 

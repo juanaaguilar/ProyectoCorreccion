@@ -4,7 +4,7 @@ import Board from './Board';
 import { delay } from './util';
 import styles from './Game.module.css';
 import { CellContent, Grid, Objectives, EffectTerm, EffectInfoTerm } from './model';
-import { useHistory } from './helpers';
+// import { useHistory } from './helpers'; (PREGUNTAR  si podemos borrar esto)
 
 function Game() {
   // State
@@ -15,8 +15,16 @@ function Game() {
   const [objectives, setObjectives] = useState<Objectives>({});
   const [path, setPath] = useState<number[]>([]);
   const [waiting, setWaiting] = useState(false);
-
-  const { grid: historyGrid, objectives: historyObjectives } = useHistory({ grid: grid!, objectives, waiting });
+  //preguntar si podemos borrar esto je
+  //const { grid: historyGrid, objectives: historyObjectives } = useHistory({ grid: grid!, objectives, waiting });
+  interface GameSnapshot {
+    grid: Grid;
+    objectives: Objectives;
+    moves: number;
+  }
+  const [history, setHistory] = useState<GameSnapshot[]>([]);
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  
 
   useEffect(() => {
     // This is executed just once, after the first render.
@@ -46,6 +54,12 @@ function Game() {
       objectives[block] = value;
     });
     setObjectives(objectives);
+    setHistory([{
+      grid: response['Grid'],
+      objectives: objectives,
+      moves: response['Moves']
+    }]);
+    setCurrentStep(0);
   }
 
   /**
@@ -63,6 +77,8 @@ function Game() {
   /**
    * Called when the user finished drawing a path in the grid.
    */
+  //modificamos esta funcion para que cada vez que se complete un path,
+  //se actualicen la cantidad de movimientos realizados.
   async function onPathDone() {
     /*
     Build Prolog query, which will be like:
@@ -88,8 +104,13 @@ function Game() {
     const response = await pengine.query(queryS);
     setPath([]);
     if (response) {
-      setMoves(moves! - 1);
-      animateEffects(response['Effects']);
+      // codigo original:
+      //setMoves(moves! - 1);
+      //animateEffects(response['Effects']);
+      const newMoves = moves! - 1;
+        setMoves(newMoves);
+        // Le pasamos newMoves a la animación para que sepa qué guardar
+        animateEffects(response['Effects'], newMoves);
     } else {
       console.log("Prolog query failed")
       setWaiting(false);
@@ -103,13 +124,39 @@ function Game() {
    * Displays each grid of the sequence as the current grid in 1sec intervals, and considers the other effect information.
    * @param effects The list of effects to be animated.
    */
-  async function animateEffects(effects: EffectTerm[]) {
+  //modificamos la funcion animateEffects para que reciba los movimientos realizados hasta el momento
+
+  async function animateEffects(effects: EffectTerm[], currentMoves: number) {
+    let currentGrid = grid;
+    let currentObjectives = { ...objectives };
+
     for (let i = 0; i < effects.length; i++) {
       applyEffect(effects[i]);
+      
+      // Calculamos cómo quedará el estado para guardarlo
+      const [effectGrid, effectInfo] = effects[i].args;
+      currentGrid = effectGrid;
+      effectInfo.forEach((effectInfoItem: EffectInfoTerm) => {
+        if (effectInfoItem.functor === 'achieved') {
+          effectInfoItem.args[0].forEach(([block, value]: [CellContent, number]) => {
+            if (currentObjectives[block] !== undefined) {
+              currentObjectives[block] = Math.max(currentObjectives[block]! - value, 0);
+            }
+          });
+        }
+      });
+
       if (i < effects.length - 1) {
         await delay(1000);
       }
     }
+    
+    // Al terminar la animación, cortamos futuros alternativos y guardamos la foto
+    setHistory(prev => {
+      const past = prev.slice(0, currentStep + 1);
+      return [...past, { grid: currentGrid!, objectives: currentObjectives, moves: currentMoves }];
+    });
+    setCurrentStep(prev => prev + 1);
     setWaiting(false);
   }
 
@@ -136,7 +183,28 @@ function Game() {
       }
     });
   }
+// --- FUNCIONES DE DESHACER / REHACER ---
+  function undo() {
+    if (currentStep > 0) {
+      const prevStep = currentStep - 1;
+      setCurrentStep(prevStep);
+      const snapshot = history[prevStep];
+      setGrid(snapshot.grid);
+      setObjectives(snapshot.objectives);
+      setMoves(snapshot.moves);
+    }
+  }
 
+  function redo() {
+    if (currentStep < history.length - 1) {
+      const nextStep = currentStep + 1;
+      setCurrentStep(nextStep);
+      const snapshot = history[nextStep];
+      setGrid(snapshot.grid);
+      setObjectives(snapshot.objectives);
+      setMoves(snapshot.moves);
+    }
+  }
   // Don't display anything until the Prolog server is ready (alternatively render a loading UI).
   if (!pengine) {
     return null;
@@ -153,19 +221,32 @@ function Game() {
           {`Moves ${moves}`}
         </div>
         <div>
-          {Object.entries(historyObjectives ?? objectives).map(([key, value]) => `${key} ${value}`).join(' | ')}
+          {Object.entries(objectives).map(([key, value]) => `${key} ${value}`).join(' | ')}
         </div>
       </div>
+      
+      {/* BOTONES DEL HISTORIAL */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '10px' }}>
+        <button onClick={undo} disabled={currentStep === 0 || waiting}>
+          ⬅️ Deshacer
+        </button>
+        <span style={{ color: 'white' }}>
+          Paso {currentStep} de {history.length > 0 ? history.length - 1 : 0}
+        </span>
+        <button onClick={redo} disabled={currentStep === history.length - 1 || waiting}>
+          Rehacer ➡️
+        </button>
+      </div>
+
       <Board
-        grid={historyGrid ?? grid}
+        grid={grid}
         numOfColumns={numOfColumns!}
         path={path}
         onPathChange={onPathChange}
         onDone={onPathDone}
-        readonly={waiting || historyGrid !== undefined}
+        readonly={waiting}
       />
     </div>
   );
 }
-
 export default Game;
