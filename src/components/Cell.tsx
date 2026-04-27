@@ -11,6 +11,7 @@ interface CellProps {
 y para que acepte tanto un string como un array de strings **/
 
 function Cell({ value, onMouseEnter, onMouseDown }: CellProps) {
+      console.log("Cell value:", JSON.stringify(value));
   console.log("El valor de la celda es:", value, "y su tipo es:", typeof value);
   // 1. Si value es undefined o null, no renderizamos nada (o renderizamos una celda vacía)
   if (!value) return <div className={styles.empty} />;

@@ -7,11 +7,6 @@
 :-discontiguous proylcc:connect/4.
 :-discontiguous proylcc:is_obstacle_cell/1.
 
-
-% NOTA: Los cuadrados eliminan puntos que no deberían eliminar. 
-% NOTA: Agrupar los predicados segun la funcionalidad (todos los de agua juntos, todos los de cuadrados juntos, etc)
-% NOTA: BORRAR COMENTARIOS (solo los innecesarios, no borrar los q explican que hace cada cosa), unificar nombres.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % connect(+Grid, +NumOfColumns, +Path, -Effects)
 %
@@ -19,17 +14,9 @@
 % donde AuxiliaryInfo es una lista de información adicional que se quiera devolver 
 % para la UI (por ejemplo, los objetivos cumplidos, o qué celdas se vieron afectadas, etc).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Parámetros
-%Grid / [Cell|Rest]: grilla original como lista plana de celdas.
-%PathSet: conjunto de índices que deben convertirse en agua.
-%Index: índice actual de la celda que se está procesando.
-%[NewCell|NewRest]: lista resultante con los cambios aplicados.
-%Acc: contador acumulado de celdas reemplazadas hasta el momento.
-%N: resultado final del contador cuando termina.
 %Path es la lista de indices seleccionados por el jugador (puede tener indices repetidos)
 %el metodo list_to_set elimina duplicados (convierte una lista en un conjunto)
 
-% Modificación de connect/4
 connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved([[Color, ColorN], [~, WaterN]])])]) :-
     % 1. Identificar el color de la jugada
     [FirstIndex|_] = Path,
@@ -48,36 +35,42 @@ connect(Grid, NumOfColumns, Path, [effect(NewGrid, [achieved([[Color, ColorN], [
         InsideSet = [] 
     ),
     
-    % 3. Evaluar agua
-    ( path_touches_water(Grid, NumOfColumns, PathSet) ->
-        WaterExpands = true
-    ;
-        WaterExpands = false
-    ),
+    % 3. Procesar la grilla evaluando agua POR CADA CELDA
+    length(Grid, TotalCells),
+    procesar_celdas_impl(Grid, Grid, PathSet, InsideSet, NumOfColumns, TotalCells, 0, GridProcesada, 0, WaterN0, 0, ColorN),
+
+    % 3.5 Propagar agua en cascada a celdas vacías adyacentes a agua
+    propagar_agua(GridProcesada, NumOfColumns, GridConAgua),
+
+    % Contabilizar el agua nueva generada por la propagación
+    contar_agua_nueva(GridProcesada, GridConAgua, AguaPropagada),
+    WaterN is WaterN0 + AguaPropagada,
     
-    % 4. Procesar la grilla (Iniciamos ambos contadores en 0)
-    procesar_celdas(Grid, PathSet, InsideSet, WaterExpands, 0, GridProcesada, 0, WaterN, 0, ColorN),
-    
-    % 5. Aplicar la gravedad
-    apply_gravity(GridProcesada, NumOfColumns, NewGrid).
+    % 4. Aplicar la gravedad
+    apply_gravity(GridConAgua, NumOfColumns, NewGrid).
 
 
-% procesar_celdas(Grid, PathSet, InsideSet, WaterExpands, Index, NewGrid, AccWater, TotalWater, AccColor, TotalColor)
-procesar_celdas([], _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
-procesar_celdas([Cell|Rest], PathSet, InsideSet, WaterExpands, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
+% --- MÓDULO DE PROCESAMIENTO DE CELDAS ---
+
+% procesar_celdas_impl(+OriginalGrid, +Grid, +PathSet, +InsideSet, +NumOfColumns, +TotalCells, +Index, -NewGrid, 
+%                       +AccWater, -TotalWater, +AccColor, -TotalColor)
+% Procesa cada celda evaluando el agua de forma individual
+procesar_celdas_impl(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
+procesar_celdas_impl(OriginalGrid, [Cell|Rest], PathSet, InsideSet, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
     ( memberchk(Index, PathSet) ->
-        % 1. Si es del color o camino, se elimina
-        determinar_celda_vacia(Cell, WaterExpands, NewCell),
-        
-        % Calculamos los logros de esta celda específica
+        % 1. La celda se va a eliminar
+        ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) ->
+            NewCell = [e, ~]
+        ;
+            NewCell = [e]
+        ),
         calcula_agua_nueva(Cell, NewCell, IncW),
         calcula_color_eliminado(Cell, IncC),
-        
         AccW1 is AccW + IncW,
         AccC1 is AccC + IncC
         
     ; memberchk(Index, InsideSet) ->
-        % 2. Si quedó atrapada, se convierte en bomba (no suma a objetivos)
+        % 2. Si quedó atrapada, se convierte en bomba
         determinar_celda_bomba(Cell, NewCell),
         AccW1 is AccW, AccC1 is AccC
     ;
@@ -86,44 +79,107 @@ procesar_celdas([Cell|Rest], PathSet, InsideSet, WaterExpands, Index, [NewCell|N
         AccW1 is AccW, AccC1 is AccC
     ),
     Index1 is Index + 1,
-    procesar_celdas(Rest, PathSet, InsideSet, WaterExpands, Index1, NewRest, AccW1, FinalW, AccC1, FinalC).
+    procesar_celdas_impl(OriginalGrid, Rest, PathSet, InsideSet, NumOfColumns, TotalCells, Index1, NewRest, AccW1, FinalW, AccC1, FinalC).
 
 
-% Reglas para crear bombas preservando obstáculos, espacios vacíos y agua.
-determinar_celda_bomba(Cell, Cell) :- is_empty_cell(Cell), !.
-determinar_celda_bomba([-], [-]) :- !.
-determinar_celda_bomba(Cell, [b, ~]) :- has_water(Cell), !.
-determinar_celda_bomba(_, [b]).
+% --- MÓDULO DE PROPAGACIÓN DE AGUA ---
 
-% --- Lógica de sustitución de celdas ---
-% Si la jugada expande agua, la celda eliminada queda vacía PERO con agua.
-determinar_celda_vacia(_, true, [e, ~]).
-% Si la jugada NO expande agua, pero la celda YA TENÍA agua, conserva su agua.
-determinar_celda_vacia(Cell, false, [e, ~]) :- has_water(Cell), !.
-% Caso contrario, la celda queda completamente vacía.
-determinar_celda_vacia(_, false, [e]).
+% Itera propagar_agua hasta que no haya cambios (punto fijo).
+% Esto resuelve cadenas de celdas eliminadas apiladas sobre el agua.
+propagar_agua(Grid, NumOfColumns, PropagatedGrid) :-
+    length(Grid, TotalCells),
+    propagar_agua_fixpoint(Grid, NumOfColumns, TotalCells, PropagatedGrid).
+
+propagar_agua_fixpoint(Grid, NumOfColumns, TotalCells, Result) :-
+    propagar_agua_una_vez(Grid, Grid, NumOfColumns, TotalCells, 0, NewGrid),
+    ( NewGrid == Grid ->
+        Result = Grid   % No hubo cambios, llegamos al punto fijo
+    ;
+        propagar_agua_fixpoint(NewGrid, NumOfColumns, TotalCells, Result)  % Hubo cambios, otra pasada
+    ).
+
+% Una pasada de propagación: convierte [e] en [e,~] si tiene un vecino con agua
+propagar_agua_una_vez(_, [], _, _, _, []).
+propagar_agua_una_vez(RefGrid, [Cell|Rest], NumOfColumns, TotalCells, Index, [NewCell|NewRest]) :-
+    ( Cell = [e] ->
+        ( neighbor_index(Index, NumOfColumns, TotalCells, NIdx),
+          nth0(NIdx, RefGrid, NCell),
+          has_water(NCell)
+        ->  NewCell = [e, ~]
+        ;   NewCell = [e]
+        )
+    ;
+        NewCell = Cell
+    ),
+    Index1 is Index + 1,
+    propagar_agua_una_vez(RefGrid, Rest, NumOfColumns, TotalCells, Index1, NewRest).
+
+% Cuenta cuántas celdas nuevas pasaron de [e] a [e,~] durante la propagación
+contar_agua_nueva([], [], 0).
+contar_agua_nueva([OldCell|OldRest], [NewCell|NewRest], Total) :-
+    contar_agua_nueva(OldRest, NewRest, SubTotal),
+    ( OldCell = [e], NewCell = [e, ~] ->
+        Total is SubTotal + 1
+    ;
+        Total is SubTotal
+    ).
+
+
+% --- MÓDULO DE AGUA ---
+
+% Verifica si una celda contiene agua (ya sea con un punto o vacía)
+has_water([_, ~]).
+has_water([~]).
+
+% Verifica si un índice específico tiene agua en alguna de sus celdas adyacentes ortogonales
+is_adjacent_to_water(Grid, NumOfColumns, Index) :-
+    length(Grid, TotalCells),
+    neighbor_index(Index, NumOfColumns, TotalCells, NeighborIndex),
+    nth0(NeighborIndex, Grid, NeighborCell),
+    has_water(NeighborCell).
+
+% Determina si el camino seleccionado interactúa con el agua
+path_touches_water(Grid, NumOfColumns, PathSet) :-
+    member(Index, PathSet),
+    (
+        nth0(Index, Grid, Cell), has_water(Cell)
+    ;
+        is_adjacent_to_water(Grid, NumOfColumns, Index)
+    ),
+    !.
+
+% should_generate_water(+OriginalGrid, +Cell, +Index, +NumOfColumns, +TotalCells)
+% Determina si una celda específica debe generar agua al eliminarse.
+% Solo las celdas adyacentes al agua en la grilla original generan agua directamente.
+% La propagación en cascada se resuelve en propagar_agua_fixpoint.
+should_generate_water(OriginalGrid, _Cell, Index, NumOfColumns, TotalCells) :-
+    neighbor_index(Index, NumOfColumns, TotalCells, NeighborIndex),
+    nth0(NeighborIndex, OriginalGrid, NeighborCell),
+    has_water(NeighborCell),
+    !.
+should_generate_water(_, _, _, _, _) :- false.
+
+
+% --- MÓDULO DE GRAVEDAD ---
 
 % apply_gravity(+Grid, +NumOfColumns, -NewGrid)
 % Mueve los puntos hacia abajo en cada columna y genera nuevos puntos en la parte superior.
 apply_gravity(Grid, NumOfColumns, NewGrid) :-
-    length(Grid, Len), %len guarda la cant total de celdas de la grilla
-    NumRows is Len // NumOfColumns, %numrows es la cantidad de filas
+    length(Grid, Len),
+    NumRows is Len // NumOfColumns,
     columns(Grid, NumOfColumns, NumRows, Columns),
-    maplist(gravity_column, Columns, GravColumns), %aplica grvity_column a cada columna, GravColumns guarda las columnas procesadas
-    rebuild_grid(NumOfColumns, NumRows, GravColumns, NewGrid). %reconstruye la grilla NewGrid a partir de las columans procesadas
+    maplist(gravity_column, Columns, GravColumns),
+    rebuild_grid(NumOfColumns, NumRows, GravColumns, NewGrid).
 
-%genera una lista de todas las columnas de la grilla (cada columna es una lista de celdas)
+% Genera una lista de todas las columnas de la grilla
 columns(Grid, NumOfColumns, NumRows, Columns) :-
-    MaxCol is NumOfColumns - 1, %MaxCol es el indice de la ultima columna
+    MaxCol is NumOfColumns - 1,
     findall(Column,
             (between(0, MaxCol, ColIndex),
              column_cells(Grid, NumOfColumns, NumRows, ColIndex, Column)),
             Columns).
 
-
-%extrae la columna ColIndex de la grilla
-%devuelve Column (lista de celdas en esa columna)
-%Index convierte la coordenada (fila,columna) a posicion en la lista plana. 
+% Extrae la columna ColIndex de la grilla
 column_cells(Grid, NumOfColumns, NumRows, ColIndex, Column) :-
     MaxRow is NumRows - 1,
     findall(Cell,
@@ -131,7 +187,8 @@ column_cells(Grid, NumOfColumns, NumRows, ColIndex, Column) :-
              Index is RowIndex * NumOfColumns + ColIndex,
              nth0(Index, Grid, Cell)),
             Column).
-%vuelve a convertir la lista de columnas en una lista plana de filas.
+
+% Vuelve a convertir la lista de columnas en una lista plana de filas
 rebuild_grid(NumOfColumns, NumRows, Columns, Grid) :-
     MaxRow is NumRows - 1,
     MaxCol is NumOfColumns - 1,
@@ -142,10 +199,7 @@ rebuild_grid(NumOfColumns, NumRows, Columns, Grid) :-
              nth0(RowIndex, Column, Cell)),
             Grid).
 
-%aplica gravedad dentro de una sola columna, respetando los obstaculos [-]
-%recopila todos los puntos de la columna completa
-%cuenta las celdas no-obstáculo
-%reconstruye la columna preservando [-] en su posicion
+% Aplica gravedad dentro de una sola columna, respetando los obstáculos [-]
 gravity_column(Column, NewColumn) :-
     include(is_point_cell, Column, Points),
     exclude(is_obstacle_cell, Column, NonObstacleCells),
@@ -153,78 +207,76 @@ gravity_column(Column, NewColumn) :-
     fill_gravity_cells(Points, Count, NewNonObstacleCells),
     rebuild_column(Column, NewNonObstacleCells, NewColumn).
 
-%genera la lista de celdas no-obstaculo con gravedad aplicada
-%primero van los nuevos puntos y luego los puntos existentes, de forma que los
-%puntos ocupen las posiciones mas bajas posibles
+% Genera la lista de celdas no-obstáculo con gravedad aplicada
 fill_gravity_cells(Points, Count, NewCells) :-
     length(Points, NumPoints),
-    NumEmpty is Count - NumPoints, %numero de celdas vacias
+    NumEmpty is Count - NumPoints,
     fill_new_points(NumEmpty, NewPoints),
     append(NewPoints, Points, NewCells).
 
-%reconstruye la columna manteniendo los obstaculos en su posicion
-%reemplaza solo las celdas no-obstáculo
+% Reconstruye la columna manteniendo los obstáculos en su posición
 rebuild_column([], [], []).
-
-% Los obstáculos se mantienen intactos
 rebuild_column([[-]|Rest], Points, [[-]|NewRest]) :-
     rebuild_column(Rest, Points, NewRest).
-
-% Reconstruimos la celda aplicando el agua si corresponde
 rebuild_column([OriginalCell|Rest], [Point|PointsRest], [FinalCell|NewRest]) :-
-    OriginalCell \= [-], % Aseguramos que no es un obstáculo
+    OriginalCell \= [-],
     apply_water(OriginalCell, Point, FinalCell),
     rebuild_column(Rest, PointsRest, NewRest).
 
-% Actualización de identificadores básicos
+
+% --- MÓDULO DE IDENTIFICADORES DE CELDAS ---
+
 is_empty_cell([e]).
-is_empty_cell([e, ~]). % El agua vacía también cuenta como espacio vacío para la gravedad
+is_empty_cell([e, ~]).
 
-
-% Un punto real es una celda que contiene un color (tenga agua o no)
-% Un punto real es aquel cuyo contenido pertenece a los colores disponibles o es una bomba
 is_point_cell([C]) :- 
     available_colors(Colors), memberchk(C, Colors).
 is_point_cell([C, ~]) :- 
     available_colors(Colors), memberchk(C, Colors).
-is_point_cell([b]).       % Bombas
-is_point_cell([b, ~]).    % Bombas con agua
+is_point_cell([b]).
+is_point_cell([b, ~]).
 
 is_obstacle_cell([-]).
 
 available_colors([r, y, g, c, p]).
 
-%%%%%%%%%%%%%%%HELPERS:
-% Extrae el color base del punto, quitándole el agua si la traía arrastrando
+
+% --- HELPERS ---
+
+% Extrae el color base del punto, quitándole el agua si la tenía
 strip_water([C, ~], [C]) :- 
-    C \= '~', !. % Seguridad adicional
+    C \= '~', !.
 strip_water([C], [C]).
 
 % Decide qué formato final tendrá el punto según la celda original del tablero
 apply_water(OriginalCell, Point, FinalCell) :-
-    has_water(OriginalCell),     % Si la posición original en la grilla tenía agua...
-    strip_water(Point, [C]),     % Tomamos el color puro del punto que está cayendo...
-    FinalCell = [C, ~], !.       % Y lo ensamblamos con agua.
-
+    has_water(OriginalCell),
+    strip_water(Point, [C]),
+    FinalCell = [C, ~], !.
 apply_water(_, Point, FinalCell) :-
-    strip_water(Point, [C]),     % Si la celda original NO tenía agua...
-    FinalCell = [C].             % Queda el color puro.
-%%%%%%%%%%%%%%%%%%%%%%%%
+    strip_water(Point, [C]),
+    FinalCell = [C].
+
+% Reglas para crear bombas preservando obstáculos, espacios vacíos y agua
+determinar_celda_bomba(Cell, Cell) :- is_empty_cell(Cell), !.
+determinar_celda_bomba([-], [-]) :- !.
+determinar_celda_bomba(Cell, [b, ~]) :- has_water(Cell), !.
+determinar_celda_bomba(_, [b]).
+
 
 % --- MÓDULO DE LOGROS Y OBJETIVOS ---
 
-% Calcula si se generó agua nueva: suma 1 SOLO si la celda original NO tenía agua y la nueva SÍ tiene.
+% Calcula si se generó agua nueva: suma 1 solo si la celda original NO tenía agua y la nueva SÍ tiene
 calcula_agua_nueva(OldCell, NewCell, 1) :-
     \+ has_water(OldCell),
     has_water(NewCell), !.
 calcula_agua_nueva(_, _, 0).
 
-% Calcula si se eliminó un punto válido para sumar al objetivo de colores.
+% Calcula si se eliminó un punto válido para sumar al objetivo de colores
 calcula_color_eliminado(Cell, 1) :- is_point_cell(Cell), !.
 calcula_color_eliminado(_, 0).
 
-
-%Count: numero de huecos a rellenar
+% Genera nuevos puntos aleatorios para rellenar los espacios vacíos
 fill_new_points(0, []) :- !.
 fill_new_points(Count, [[Color]|Rest]) :-
     Count > 0,
@@ -233,98 +285,42 @@ fill_new_points(Count, [[Color]|Rest]) :-
     Count1 is Count - 1,
     fill_new_points(Count1, Rest).
 
-% --- MÓDULO DE AGUA ---
-
-% Verifica si una celda contiene agua (ya sea con un punto o vacía)
-has_water([_, ~]).
-has_water([~]). % Por seguridad, por si en algún momento queda representada así
-
-% Determina si el camino seleccionado interactúa con el agua
-% Retorna true si alguna celda del Path ya tiene agua, O si alguna es adyacente al agua.
-path_touches_water(Grid, NumOfColumns, PathSet) :-
-    member(Index, PathSet), % Tomamos un índice del camino
-    (
-        nth0(Index, Grid, Cell), has_water(Cell) % Condición A: La celda en sí tiene agua
-    ;
-        is_adjacent_to_water(Grid, NumOfColumns, Index) % Condición B: Un vecino tiene agua
-    ),
-    !. % Corte (Green Cut): Si encontramos al menos una interacción, el agua se expande. No necesitamos seguir buscando.
-
-% Verifica si un índice específico tiene agua en alguna de sus celdas adyacentes ortogonales
-is_adjacent_to_water(Grid, NumOfColumns, Index) :-
-    length(Grid, TotalCells),
-    neighbor_index(Index, NumOfColumns, TotalCells, NeighborIndex),
-    nth0(NeighborIndex, Grid, NeighborCell),
-    has_water(NeighborCell).
-
-% Retorna los índices vecinos válidos (arriba, abajo, izquierda, derecha) respetando los bordes
-% Izquierda
-neighbor_index(Index, NumOfColumns, _TotalCells, NeighborIndex) :-
-    Index mod NumOfColumns =\= 0,
-    NeighborIndex is Index - 1.
-% Derecha
-neighbor_index(Index, NumOfColumns, _TotalCells, NeighborIndex) :-
-    (Index + 1) mod NumOfColumns =\= 0,
-    NeighborIndex is Index + 1.
-% Arriba
-neighbor_index(Index, NumOfColumns, _TotalCells, NeighborIndex) :-
-    NeighborIndex is Index - NumOfColumns,
-    NeighborIndex >= 0.
-% Abajo
-neighbor_index(Index, NumOfColumns, TotalCells, NeighborIndex) :-
-    NeighborIndex is Index + NumOfColumns,
-    NeighborIndex < TotalCells.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Logica para cuadrados:La estrategia es la siguiente: en lugar de alterar cómo se elimina 
-%el agua o cómo cae la gravedad, simplemente vamos a interceptar la lista de puntos a eliminar (PathSet). 
-%Si detectamos que la jugada es un lazo cerrado, reemplazamos el PathSet original por una lista que contenga
-%todos los puntos de ese color en el tablero. El agua se expandirá automáticamente por todos ellos si al menos uno toca el agua.
 
 % --- MÓDULO DE FORMAS CERRADAS ---
 
 % Verifica si el camino forma un ciclo (cuadrado o lazo).
-% En la UI, si el jugador cierra un ciclo, el último punto del Path es igual a uno de los anteriores.
-% Esto significa que hay índices duplicados y la longitud mínima para un lazo en Two Dots es 4.
+% La longitud mínima para un lazo en Two Dots es 4.
 is_closed_loop(Path) :-
     length(Path, Len),
     Len >= 4,
     list_to_set(Path, PathSet),
     length(PathSet, SetLen),
-    Len > SetLen. % Si la longitud original es mayor al set, hay duplicados (se cerró el ciclo)
+    Len > SetLen.
 
-% Encuentra todos los índices de la grilla que tengan un color específico.
+% Encuentra todos los índices de la grilla que tengan un color específico
 get_all_of_color(Grid, TargetColor, TargetIndices) :-
     findall(Index,
             (nth0(Index, Grid, Cell),
              is_target_color(Cell, TargetColor)),
             TargetIndices).
 
-% Verifica si una celda contiene el color buscado (tenga agua o no).
-% Usamos == para garantizar identidad estricta y evitamos variables con el mismo nombre.
+% Verifica si una celda contiene el color buscado (tenga agua o no)
 is_target_color([C], TargetColor) :- 
     C == TargetColor.
 is_target_color([C, ~], TargetColor) :- 
     C == TargetColor.
 
+
 % --- MÓDULO GEOMÉTRICO Y BOMBAS ---
 
-% Encuentra todos los índices que están estrictamente dentro de un lazo cerrado.
+% Encuentra todos los índices que están estrictamente dentro de un lazo cerrado
 find_inside_cells(Grid, NumOfColumns, LoopBoundary, InsideSet) :-
     length(Grid, TotalCells),
     grid_boundaries(NumOfColumns, TotalCells, Borders),
-    
-    % Empezamos la inundación desde los bordes de la pantalla que NO son parte del lazo
     subtract(Borders, LoopBoundary, StartNodes),
-    
-    % Inundamos para encontrar todo lo que está afuera
     flood_fill(StartNodes, LoopBoundary, NumOfColumns, TotalCells, [], OutsideCells),
-    
-    % Generamos una lista con todos los índices de la grilla (0 a TotalCells - 1)
     MaxIndex is TotalCells - 1,
     findall(I, between(0, MaxIndex, I), AllCells),
-    
-    % Adentro = Todas las celdas MENOS el lazo MENOS las celdas de afuera
     subtract(AllCells, LoopBoundary, NonLoopCells),
     subtract(NonLoopCells, OutsideCells, InsideSet).
 
@@ -350,7 +346,27 @@ flood_fill([Curr|Rest], LoopBoundary, NumOfColumns, TotalCells, Visited, Outside
         \+ memberchk(N, Visited)
     ), NeighborsRaw),
     list_to_set(NeighborsRaw, Neighbors),
-    % Evitamos encolar nodos que ya están esperando en Rest
     subtract(Neighbors, Rest, NewNeighbors),
     append(Rest, NewNeighbors, NewQueue),
     flood_fill(NewQueue, LoopBoundary, NumOfColumns, TotalCells, [Curr|Visited], Outside).
+
+
+% --- MÓDULO DE VECINOS ---
+
+% Retorna los índices vecinos válidos (arriba, abajo, izquierda, derecha) respetando los bordes
+% Izquierda
+neighbor_index(Index, NumOfColumns, _TotalCells, NeighborIndex) :-
+    Index mod NumOfColumns =\= 0,
+    NeighborIndex is Index - 1.
+% Derecha
+neighbor_index(Index, NumOfColumns, _TotalCells, NeighborIndex) :-
+    (Index + 1) mod NumOfColumns =\= 0,
+    NeighborIndex is Index + 1.
+% Arriba
+neighbor_index(Index, NumOfColumns, _TotalCells, NeighborIndex) :-
+    NeighborIndex is Index - NumOfColumns,
+    NeighborIndex >= 0.
+% Abajo
+neighbor_index(Index, NumOfColumns, TotalCells, NeighborIndex) :-
+    NeighborIndex is Index + NumOfColumns,
+    NeighborIndex < TotalCells.

@@ -8,6 +8,7 @@
     position: absolute;
     width: 100%;
     height: 100%;
+    z-index: 0; /* debajo del punto */
 }
 
 .empty {
@@ -24,6 +25,7 @@
     flex-grow: 1;
     z-index: 1;
     display: flex;
+    position: relative; /* necesario para que z-index funcione */
 }
 
 .color>div {

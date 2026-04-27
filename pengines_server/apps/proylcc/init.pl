@@ -43,6 +43,7 @@ init([
 	[-], [y, ~], [y, ~], [y], [-], [-], [-], [-]
 ], 8, [[r, 10], [g, 10], [p, 15], [~, 21]], 35).
 
+
 %no tocar este archivo,es solo para crear la grilla
 
 %hacer un predicado para sacar una celda y completar 
