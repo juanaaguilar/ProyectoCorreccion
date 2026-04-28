@@ -1,15 +1,36 @@
 .game {
+  min-height: 100vh;
   display: flex;
+  gap: 5px;
   flex-direction: column;
-  background: #3a5783;
   align-items: center;
+  background: linear-gradient(180deg, #0f172a, #1e293b);
 }
 
 .header {
-  margin: 10px;
-  color: white;
   display: flex;
-  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 500px;
+  padding: 12px 20px;
+  margin: 20px 0;
+
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+
+  color: #e2e8f0;
+}
+
+.moves {
+  font-size: 14px;
+}
+
+.moves span {
+  font-size: 20px;
+  font-weight: 700;
+  margin-left: 5px;
 }
 
 .gameInfo {
@@ -51,6 +72,94 @@
   letter-spacing: -0.02em;
 }
 
+:global(button) {
+  background: #334155;
+  color: #e2e8f0;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+:global(button:hover) {
+  background: #475569;
+  transform: translateY(-1px);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+/* BOTÓN BASE */
+.gameButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  background: linear-gradient(145deg, #334155, #1e293b);
+  color: #e2e8f0;
+
+  border: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+
+  font-weight: 600;
+  font-size: 14px;
+
+  cursor: pointer;
+
+  box-shadow: 
+    0 4px 10px rgba(0,0,0,0.4),
+    inset 0 1px rgba(255,255,255,0.05);
+
+  transition: all 0.15s ease;
+}
+
+/* ICONO */
+.icon {
+  font-size: 16px;
+}
+
+/* HOVER */
+.gameButton:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.03);
+  background: linear-gradient(145deg, #475569, #334155);
+}
+
+/* CLICK */
+.gameButton:active:not(:disabled) {
+  transform: scale(0.95);
+  box-shadow: 
+    0 2px 5px rgba(0,0,0,0.5),
+    inset 0 2px rgba(0,0,0,0.3);
+}
+
+/* DESHABILITADO */
+.gameButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* VARIANTES */
+.undo {
+  background: linear-gradient(145deg, #3b82f6, #1e40af);
+}
+
+.redo {
+  background: linear-gradient(145deg, #22c55e, #166534);
+}
+
+/* TEXTO PASO */
+.step {
+  color: #cbd5f5;
+  font-size: 13px;
+}
+
 /* Botón de reiniciar */
 .restartButton {
   background-color: #22c55e; /* Verde victoria, podés cambiarlo a gusto */
@@ -69,6 +178,45 @@
   transform: translateY(-2px);
   box-shadow: 0 6px 8px -1px rgba(34, 197, 94, 0.5);
   background-color: #16a34a;
+}
+
+.objectives {
+  display: flex;
+  gap: 10px;
+}
+
+.obj {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  transition: transform 0.2s;
+}
+
+.obj:hover {
+  transform: scale(1.1);
+}
+
+/* Mapeo de colores (ajustalo a tu juego) */
+.r { background: #e84d60; }
+.g { background: #2cac75; }
+.b { background: #7bbdc9; }
+.y { background: #fecd6c; }
+.p { background: #b388e3; }
+.water { background: lightblue;
+; }
+
+.boardWrapper {
+  background: #1e293b;
+  padding: 20px;
+  border-radius: 20px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.4);
 }
 
 /* Pequeña animación para que aparezca suavemente */

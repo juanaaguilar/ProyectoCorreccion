@@ -25,3 +25,4 @@
     grid-template-columns: repeat(var(--num-columns), 30px);
     grid-template-rows: repeat(calc(var(--num-rows) - 1), 30px);
 }
+

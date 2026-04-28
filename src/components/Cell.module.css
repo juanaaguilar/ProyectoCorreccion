@@ -1,6 +1,7 @@
 .cell {
     display: flex;
     position: relative;
+    
 }
 
 .water {
@@ -36,3 +37,4 @@
     overflow: visible;
     flex-grow: 1;
 }
+

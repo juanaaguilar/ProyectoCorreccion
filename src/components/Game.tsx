@@ -224,35 +224,52 @@ function Game() {
   return (
     <div className={styles.game}>
       <div className={styles.header}>
-        <div>
-          {`Moves ${moves}`}
+        <div className={styles.moves}>
+          Moves <span>{moves}</span>
         </div>
-        <div>
-          {Object.entries(objectives).map(([key, value]) => `${key} ${value}`).join(' | ')}
-        </div>
+          <div className={styles.objectives}>
+            {Object.entries(objectives).map(([key, value]) => (
+            <div key={key} className={`${styles.obj} ${key === '~' ? styles.water : styles[key]}`}>
+              {value}
+            </div>
+            ))}
+          </div>
       </div>
       
       {/* BOTONES DEL HISTORIAL */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '10px' }}>
-        <button onClick={undo} disabled={currentStep === 0 || waiting}>
-          ⬅️ Deshacer
+      <div className={styles.controls}>
+        <button 
+          className={`${styles.gameButton} ${styles.undo}`}
+          onClick={undo}
+          disabled={currentStep === 0 || waiting}
+        >
+          <span className={styles.icon}>↺</span>
+          <span>Deshacer</span>
         </button>
-        <span style={{ color: 'white' }}>
-          Paso {currentStep} de {history.length > 0 ? history.length - 1 : 0}
-        </span>
-        <button onClick={redo} disabled={currentStep === history.length - 1 || waiting}>
-          Rehacer ➡️
+
+        <div className={styles.step}>
+          Paso {currentStep} / {history.length > 0 ? history.length - 1 : 0}
+        </div>
+
+        <button 
+          className={`${styles.gameButton} ${styles.redo}`}
+          onClick={redo}
+          disabled={currentStep === history.length - 1 || waiting}
+        >
+          <span className={styles.icon}>↻</span>
+          <span>Rehacer</span>
         </button>
-      </div>
-      
-      <Board
-        grid={grid}
-        numOfColumns={numOfColumns!}
-        path={path}
-        onPathChange={onPathChange}
-        onDone={onPathDone}
-        readonly={waiting || (history.length > 0 && currentStep < history.length - 1) || isGameOver}
-      />
+    </div>
+      <div className={styles.boardWrapper}>
+        <Board
+          grid={grid}
+          numOfColumns={numOfColumns!}
+          path={path}
+          onPathChange={onPathChange}
+          onDone={onPathDone}
+          readonly={waiting || (history.length > 0 && currentStep < history.length - 1) || isGameOver}
+        />
+      </div> 
 
       {/* --- CARTEL DE FIN DE JUEGO --- */}
       {isGameOver && (
