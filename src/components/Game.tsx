@@ -6,6 +6,13 @@ import styles from './Game.module.css';
 import { CellContent, Grid, Objectives, EffectTerm, EffectInfoTerm } from './model';
 // import { useHistory } from './helpers'; (PREGUNTAR  si podemos borrar esto)
 
+
+
+// Definimos la interfaz para los datos de la explosión
+export interface ExplosionData {
+  bombs: number[];
+  radius: number[];
+}
 function Game() {
   // State
   const [pengine, setPengine] = useState<any>(null);
@@ -17,6 +24,9 @@ function Game() {
   const [waiting, setWaiting] = useState(false);
   //preguntar si podemos borrar esto je
   //const { grid: historyGrid, objectives: historyObjectives } = useHistory({ grid: grid!, objectives, waiting });
+
+  //Estado para controlar la animación en pantalla
+  const [explosionData, setExplosionData] = useState<ExplosionData | null>(null);
   interface GameSnapshot {
     grid: Grid;
     objectives: Objectives;
@@ -131,11 +141,29 @@ function Game() {
     let currentObjectives = { ...objectives };
 
     for (let i = 0; i < effects.length; i++) {
-      applyEffect(effects[i]);
-      
       // Calculamos cómo quedará el estado para guardarlo
       const [effectGrid, effectInfo] = effects[i].args;
+      // --- Interceptamos la información de explosión ---
+      const explosionInfoItem = effectInfo.find((item: EffectInfoTerm) => item.functor === 'explosions');
+      
+      // Verificamos si existe el evento de explosión y si trajo bombas para detonar
+      if (explosionInfoItem && explosionInfoItem.args[0].length > 0) {
+        const bombs = explosionInfoItem.args[0];
+        const radius = explosionInfoItem.args[1];
+        
+        // 1. Prendemos la animación visual pasando las coordenadas
+        setExplosionData({ bombs, radius });
+        
+        // 2. Pausamos la ejecución para darle tiempo al CSS de brillar (1.2 seg)
+        await delay(1200);
+        
+        // 3. Apagamos la animación antes de que caiga la gravedad
+        setExplosionData(null);
+      }
+      // ---------------------------------------------------------
+       applyEffect(effects[i]);
       currentGrid = effectGrid;
+
       effectInfo.forEach((effectInfoItem: EffectInfoTerm) => {
         if (effectInfoItem.functor === 'achieved') {
           effectInfoItem.args[0].forEach(([block, value]: [CellContent, number]) => {
@@ -268,6 +296,7 @@ function Game() {
           onPathChange={onPathChange}
           onDone={onPathDone}
           readonly={waiting || (history.length > 0 && currentStep < history.length - 1) || isGameOver}
+          explosionData={explosionData} /* Pasamos la prop al tablero */
         />
       </div> 
 

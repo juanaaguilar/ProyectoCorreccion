@@ -37,4 +37,16 @@
     overflow: visible;
     flex-grow: 1;
 }
+.bombAnim {
+    transform: scale(1.15);
+    border: 2px solid #ff4444; 
+    transition: all 0.3s ease-in-out;
+    z-index: 10;
+}
 
+.flashAnim {
+    box-shadow: 0 0 12px 4px rgba(255, 255, 255, 0.8);
+    opacity: 0.9;
+    transition: all 0.2s;
+    z-index: 5;
+}

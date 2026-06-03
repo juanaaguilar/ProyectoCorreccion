@@ -4,7 +4,10 @@ import Cell from './Cell';
 import { connectable, connectionInPath, isAdyacent, isConnectableDot } from './helpers';
 import Connector from './Connector';
 import styles from './Board.module.css';
-
+interface ExplosionData {
+    bombs: number[];
+    radius: number[];
+}
 interface BoardProps {
     grid: Grid;
     numOfColumns: number;
@@ -12,9 +15,10 @@ interface BoardProps {
     onPathChange: (path: number[]) => void;
     onDone: () => void;
     readonly?: boolean;
+    explosionData?: ExplosionData | null; //  Recibimos la prop desde Game
 }
 
-function Board({ grid, numOfColumns, path, onPathChange, onDone, readonly }: BoardProps) {
+function Board({ grid, numOfColumns, path, onPathChange, onDone, readonly, explosionData }: BoardProps) {
 
     function onDotDown(pos: number) {
         if (readonly) {
@@ -75,14 +79,19 @@ function Board({ grid, numOfColumns, path, onPathChange, onDone, readonly }: Boa
         <div className={styles.board} style={{ '--num-columns': numOfColumns, '--num-rows': numOfRows } as React.CSSProperties}>
             <div className={styles.cells}>
                 {grid.map((cell, pos) => {
+                    const isBomb = explosionData?.bombs.includes(pos) || false;
+                    const isExplosionRadius = explosionData?.radius.includes(pos) || false;
                     return (
                         <Cell
                             value={cell}
                             onMouseDown={() => onDotDown(pos)}
                             onMouseEnter={() => onDotHover(pos)}
                             key={pos}
+                            // Pasamos las props booleanas al hijo
+                            isBomb={isBomb}
+                            isExplosionRadius={isExplosionRadius}
                         />
-                    );
+                        );
                 })}
             </div>
             <div className={styles.horizontalConnectors}>
