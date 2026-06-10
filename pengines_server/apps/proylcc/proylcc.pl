@@ -133,23 +133,25 @@ connect(Grid, NumOfColumns, Path, Effects) :-
 
 procesar_celdas_impl(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
 procesar_celdas_impl(OriginalGrid, [Cell|Rest], CellsToClear, InsideSet, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
-    ( is_nesting_dot(Cell), (memberchk(Index, CellsToClear) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, CellsToClear)) ->
-        % Si es un obstáculo gris y está en la explosión o al lado, se achica
+    ( is_obstacle_cell(Cell) ->
+        % 1. ESCUDO: Los obstáculos son inamovibles
+        NewCell = Cell, AccW1 is AccW, AccC1 is AccC
+    ; is_nesting_dot(Cell), (memberchk(Index, CellsToClear) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, CellsToClear)) ->
+        % 2. DAÑO: Los Nesting Dots reciben daño si están pegados a la jugada
         damage_nesting_dot(Cell, NewCell),
         AccW1 is AccW, AccC1 is AccC
     ; memberchk(Index, CellsToClear) -> 
-        ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) ->
-            NewCell = [e, ~]
-        ;
-            NewCell = [e]
-        ),
+        % 3. ELIMINACIÓN: Celdas normales en el camino
+        ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) -> NewCell = [e, ~] ; NewCell = [e] ),
         calcula_agua_nueva(Cell, NewCell, IncW),
         calcula_color_eliminado(Cell, IncC),
         AccW1 is AccW + IncW, AccC1 is AccC + IncC
     ; memberchk(Index, InsideSet) ->
+        % 4. BOMBAS: Celdas encerradas en un cuadrado
         determinar_celda_bomba(Cell, NewCell),
         AccW1 is AccW, AccC1 is AccC
     ;
+        % 5. DEFAULT: No le pasa nada
         NewCell = Cell,
         AccW1 is AccW, AccC1 is AccC
     ),
@@ -158,20 +160,17 @@ procesar_celdas_impl(OriginalGrid, [Cell|Rest], CellsToClear, InsideSet, NumOfCo
 
 procesar_celdas_fase1(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
 procesar_celdas_fase1(OriginalGrid, [Cell|Rest], NormalPathSet, ActiveBombs, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
-    ( is_nesting_dot(Cell), (memberchk(Index, NormalPathSet) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, NormalPathSet)) ->
-        % APLICAMOS EL DAÑO ESPECIAL DE FASE 1
+    ( is_obstacle_cell(Cell) ->
+        % ESCUDO: Los obstáculos son inamovibles
+        NewCell = Cell, AccW1 is AccW, AccC1 is AccC
+    ; is_nesting_dot(Cell), (memberchk(Index, NormalPathSet) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, NormalPathSet)) ->
         damage_nesting_dot_fase1(Cell, NewCell),
         AccW1 is AccW, AccC1 is AccC
     ; memberchk(Index, NormalPathSet) ->
-        ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) ->
-            NewCell = [e, ~]
-        ;
-            NewCell = [e]
-        ),
+        ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) -> NewCell = [e, ~] ; NewCell = [e] ),
         calcula_agua_nueva(Cell, NewCell, IncW),
         calcula_color_eliminado(Cell, IncC),
         AccW1 is AccW + IncW, AccC1 is AccC + IncC
-        
     ; memberchk(Index, ActiveBombs) ->
         determinar_bomba_activa(Cell, NewCell),
         AccW1 is AccW, AccC1 is AccC
@@ -375,13 +374,13 @@ detonar_cascada(Grid, [Bomb|RestBombs], NumOfColumns, TotalCells, Color, AccWate
 % Procesador exclusivo para turnos de cascada
 procesar_celdas_cascada(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
 procesar_celdas_cascada(OriginalGrid, [Cell|Rest], CellsToClear, BombsToActivate, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
-    ( is_nesting_dot(Cell), (memberchk(Index, CellsToClear) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, CellsToClear)) ->
-        % Si el radio golpea un Nesting Dot, sufre daño de fase 1. 
-        % (Si llega a nivel 1, se convierte en b_act y se suma mágicamente a la próxima cascada!)
+    ( is_obstacle_cell(Cell) ->
+        % ESCUDO: Los obstáculos son inamovibles, ignoran la onda expansiva
+        NewCell = Cell, AccW1 is AccW, AccC1 is AccC
+    ; is_nesting_dot(Cell), (memberchk(Index, CellsToClear) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, CellsToClear)) ->
         damage_nesting_dot_fase1(Cell, NewCell),
         AccW1 is AccW, AccC1 is AccC
     ; memberchk(Index, BombsToActivate) ->
-        % Las bombas encadenadas se preparan para el próximo turno
         determinar_bomba_activa(Cell, NewCell),
         AccW1 is AccW, AccC1 is AccC
     ; memberchk(Index, CellsToClear) ->
