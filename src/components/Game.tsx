@@ -22,10 +22,9 @@ function Game() {
   const [objectives, setObjectives] = useState<Objectives>({});
   const [path, setPath] = useState<number[]>([]);
   const [waiting, setWaiting] = useState(false);
+  const [isShuffling, setIsShuffling] = useState(false);
   //preguntar si podemos borrar esto je
   //const { grid: historyGrid, objectives: historyObjectives } = useHistory({ grid: grid!, objectives, waiting });
-
-  //Estado para controlar la animación en pantalla
   const [explosionData, setExplosionData] = useState<ExplosionData | null>(null);
   interface GameSnapshot {
     grid: Grid;
@@ -141,6 +140,7 @@ function Game() {
     let currentObjectives = { ...objectives };
 
     for (let i = 0; i < effects.length; i++) {
+      
       // Calculamos cómo quedará el estado para guardarlo
       const [effectGrid, effectInfo] = effects[i].args;
       // --- Interceptamos la información de explosión ---
@@ -159,6 +159,13 @@ function Game() {
         
         // 3. Apagamos la animación antes de que caiga la gravedad
         setExplosionData(null);
+      }
+      // Interceptamos el evento de reordenamiento
+     const isShuffledEvent = effectInfo.some((item: any) => item === 'shuffled');
+      if (isShuffledEvent) {
+          setIsShuffling(true);
+          await delay(1500); // Mantenemos el cartel visible 1.5 segundos
+          setIsShuffling(false);
       }
       // ---------------------------------------------------------
        applyEffect(effects[i]);
@@ -311,6 +318,15 @@ function Game() {
             <button onClick={initGame} className={styles.restartButton}>
               Volver a jugar
             </button>
+          </div>
+        </div>
+      )}
+      {/* --- CARTEL DE MEZCLADO --- */}
+      {isShuffling && (
+        <div className={styles.shufflingOverlay}>
+          <div className={styles.shufflingModal}>
+            <h2>No hay combinaciones disponibles</h2>
+            <p>Reordenando el tablero...</p>
           </div>
         </div>
       )}

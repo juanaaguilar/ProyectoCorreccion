@@ -6,6 +6,7 @@
 :-use_module(library(lists)).
 :-discontiguous proylcc:connect/4.
 :-discontiguous proylcc:is_obstacle_cell/1.
+:- use_module(library(random)).
 
 %No borrar: %%%%%%%%%%%%%
 
@@ -15,7 +16,7 @@
 % Agregar mas niveles 
 % Agregar puntos "obstaculo" grises (Nesting dots): estos cambian de tamaño cuando explotas puntos
 %al lado, y si explotas 3 puntos se convierten en bombas. Se pueden poner como objetivos
-%Implementar reaccion en cadena de las bombas, si explota una al lado, las demas deben explotar
+%Implementar reaccion en cadena de las bombas, si explota una al lado, las demas deben explotar (LISTO)
 
 
 %REFACTOREO DE CÓDIGO: 
@@ -53,13 +54,13 @@
 % connect(+Grid, +NumOfColumns, +Path, -Effects)
 % Se añade explosions(UniqueBombs, ExplosionSet) a la respuesta para la UI.
 % Ejecución en DOS fases para permitir que las bombas caigan antes de explotar.
+% connect(+Grid, +NumOfColumns, +Path, -Effects)
 connect(Grid, NumOfColumns, Path, Effects) :-
-    % Identificar el color de la jugada
+    % 1. Identificar color y lazo
     [FirstIndex|_] = Path,
     nth0(FirstIndex, Grid, FirstCell),
     strip_water(FirstCell, [Color]),
 
-    % Identificar qué se elimina y qué queda atrapado adentro
     ( is_closed_loop(Path) ->
         list_to_set(Path, LoopBoundary),
         find_inside_cells(Grid, NumOfColumns, LoopBoundary, InsideSet),
@@ -71,30 +72,33 @@ connect(Grid, NumOfColumns, Path, Effects) :-
     ),
     
     length(Grid, TotalCells),
-    
-    % Bombas previas tocadas por el camino
     findall(Idx, (member(Idx, PathSet), nth0(Idx, Grid, Cell), is_bomb_cell(Cell)), PathBombs),
-    
-    % Todas las bombas que DEBEN explotar en este turno
     append(InsideSet, PathBombs, AllBombsToExplode),
     list_to_set(AllBombsToExplode, UniqueBombsToActivate),
     
     ( UniqueBombsToActivate = [] ->
-        % --- CASO A: SIN BOMBAS (Ejecución de 1 fase) ---
+        % --- CASO A: SIN BOMBAS ---
         procesar_celdas_impl(Grid, Grid, PathSet, [], NumOfColumns, TotalCells, 0, GridProcesada, 0, WaterN0, 0, ColorN),
         propagar_agua(GridProcesada, NumOfColumns, GridConAgua),
         contar_agua_nueva(GridProcesada, GridConAgua, AguaPropagada),
         WaterN is WaterN0 + AguaPropagada,
         
-        apply_gravity(GridConAgua, NumOfColumns, NewGrid),
-        Effects = [effect(NewGrid, [achieved([[Color, ColorN], [~, WaterN]])])]
+        apply_gravity(GridConAgua, NumOfColumns, RawNewGrid),
+        
+        % Verificamos si hay movimientos y mezclamos si es necesario
+        ensure_valid_moves(RawNewGrid, NumOfColumns, NewGrid, WasShuffled),
+        BaseEffect = effect(RawNewGrid, [achieved([[Color, ColorN], [~, WaterN]])]),
+        
+        ( WasShuffled == true -> 
+            Effects = [BaseEffect, effect(NewGrid, [shuffled])]
+        ; 
+            Effects = [BaseEffect]
+        )
         
     ;
-        % --- CASO B: CON BOMBAS (Ejecución de 2 fases) ---
-        % FASE 1: Crear bombas activas y aplicar PRIMERA gravedad
+        % --- CASO B: CON BOMBAS ---
         subtract(PathSet, PathBombs, NormalPathSet),
         procesar_celdas_fase1(Grid, Grid, NormalPathSet, UniqueBombsToActivate, NumOfColumns, TotalCells, 0, GridF1, 0, Water1, 0, Color1),
-        
         propagar_agua(GridF1, NumOfColumns, GridAgua1),
         contar_agua_nueva(GridF1, GridAgua1, AguaProp1),
         WaterTotal1 is Water1 + AguaProp1,
@@ -103,24 +107,25 @@ connect(Grid, NumOfColumns, Path, Effects) :-
         get_active_bombs(IntermediateGridRaw, ActiveBombIndices),
         normalize_grid(IntermediateGridRaw, IntermediateGrid),
         
-        % FASE 2: Detonar bombas y aplicar SEGUNDA gravedad
         calcular_radio_explosion(ActiveBombIndices, NumOfColumns, TotalCells, ExplosionSet),
         list_to_set(ExplosionSet, CellsToClear),
-        
         procesar_celdas_impl(IntermediateGrid, IntermediateGrid, CellsToClear, [], NumOfColumns, TotalCells, 0, GridF2, 0, Water2, 0, Color2),
-        
         propagar_agua(GridF2, NumOfColumns, GridAgua2),
         contar_agua_nueva(GridF2, GridAgua2, AguaProp2),
         WaterTotal2 is Water2 + AguaProp2,
         
-        apply_gravity(GridAgua2, NumOfColumns, FinalGrid),
+        apply_gravity(GridAgua2, NumOfColumns, RawFinalGrid),
         
-        Effects = [
-            effect(IntermediateGrid, [achieved([[Color, Color1], [~, WaterTotal1]])]),
-            effect(FinalGrid, [achieved([[Color, Color2], [~, WaterTotal2]]), explosions(ActiveBombIndices, ExplosionSet)])
-        ]
+        % Verificamos si hay movimientos y mezclamos si es necesario
+        ensure_valid_moves(RawFinalGrid, NumOfColumns, FinalGrid, WasShuffled),
+        BaseEffect2 = effect(RawFinalGrid, [achieved([[Color, Color2], [~, WaterTotal2]]), explosions(ActiveBombIndices, ExplosionSet)]),
+        
+        ( WasShuffled == true ->
+            Effects = [effect(IntermediateGrid, [achieved([[Color, Color1], [~, WaterTotal1]])]), BaseEffect2, effect(FinalGrid, [shuffled])]
+        ;
+            Effects = [effect(IntermediateGrid, [achieved([[Color, Color1], [~, WaterTotal1]])]), BaseEffect2]
+        )
     ).
-
 
 % ==============================================================================
 % 2. MÓDULO DE PROCESAMIENTO DE CELDAS
@@ -387,3 +392,85 @@ fill_new_points(Count, [[Color]|Rest]) :-
     available_colors(Colors), random_member(Color, Colors),
     Count1 is Count - 1,
     fill_new_points(Count1, Rest).
+
+% ==============================================================================
+% 9. MÓDULO DE REORDENAMIENTO (SHUFFLE)
+% ==============================================================================
+
+% Verifica recursivamente que la grilla tenga movimientos. Si no los tiene, la mezcla.
+ensure_valid_moves(Grid, NumOfColumns, FinalGrid, WasShuffled) :-
+    ( has_valid_move(Grid, NumOfColumns) ->
+        FinalGrid = Grid,
+        WasShuffled = false
+    ;
+        shuffle_grid(Grid, ShuffledGrid),
+        % Validamos de nuevo por si la mezcla aleatoria tampoco tiene movimientos (raro, pero posible)
+        ensure_valid_moves(ShuffledGrid, NumOfColumns, FinalGrid, _) ,
+        WasShuffled = true
+    ).
+
+% Verifica si hay al menos dos puntos del mismo color adyacentes
+has_valid_move(Grid, NumOfColumns) :-
+    length(Grid, TotalCells),
+    MaxIndex is TotalCells - 1,
+    between(0, MaxIndex, Index),
+    nth0(Index, Grid, Cell),
+    is_shuffleable_color(Cell),
+    strip_water(Cell, [Color]),
+    (
+        % Chequear vecino a la derecha
+        ( (Index + 1) mod NumOfColumns =\= 0,
+          NeighborIdx is Index + 1,
+          nth0(NeighborIdx, Grid, NeighborCell),
+          is_shuffleable_color(NeighborCell),
+          strip_water(NeighborCell, [NeighborColor]),
+          Color == NeighborColor
+        )
+    ;
+        % Chequear vecino de abajo
+        ( NeighborIdx is Index + NumOfColumns,
+          NeighborIdx =< MaxIndex,
+          nth0(NeighborIdx, Grid, NeighborCell),
+          is_shuffleable_color(NeighborCell),
+          strip_water(NeighborCell, [NeighborColor]),
+          Color == NeighborColor
+        )
+    ),
+    !. % Green cut: detiene la búsqueda apenas encuentra un movimiento
+
+% Identifica si la celda es un color combinable (ignora bombas y obstáculos)
+is_shuffleable_color(Cell) :- 
+    is_point_cell(Cell),
+    strip_water(Cell, [C]),
+    available_colors(Colors),
+    memberchk(C, Colors).
+
+% Extrae los colores, los mezcla y los reinserta en el esqueleto de la grilla original
+shuffle_grid(Grid, ShuffledGrid) :-
+    extract_points_and_skeletons(Grid, Points, Skeleton),
+    random_permutation(Points, ShuffledPoints),
+    rebuild_shuffled_grid(Skeleton, ShuffledPoints, ShuffledGrid).
+
+extract_points_and_skeletons([], [], []).
+
+% Si es un punto de color CON agua
+extract_points_and_skeletons([Cell|Rest], [[C]|P], [p_water|S]) :-
+    is_shuffleable_color(Cell), has_water(Cell), strip_water(Cell, [C]), !,
+    extract_points_and_skeletons(Rest, P, S). % <--- FALTABA ESTA RECURSIVIDAD
+
+% Si es un punto de color SIN agua
+extract_points_and_skeletons([Cell|Rest], [[C]|P], [p|S]) :-
+    is_shuffleable_color(Cell), \+ has_water(Cell), strip_water(Cell, [C]), !,
+    extract_points_and_skeletons(Rest, P, S). % <--- FALTABA ESTA RECURSIVIDAD
+
+% Si no se puede mezclar (bombas, vacíos, obstáculos), queda anclado en el esqueleto
+extract_points_and_skeletons([Cell|Rest], P, [Cell|S]) :-
+    extract_points_and_skeletons(Rest, P, S).
+
+rebuild_shuffled_grid([], _, []).
+rebuild_shuffled_grid([p_water|RestS], [[C]|RestP], [[C, ~]|RestGrid]) :-
+    !, rebuild_shuffled_grid(RestS, RestP, RestGrid).
+rebuild_shuffled_grid([p|RestS], [[C]|RestP], [[C]|RestGrid]) :-
+    !, rebuild_shuffled_grid(RestS, RestP, RestGrid).
+rebuild_shuffled_grid([Cell|RestS], Points, [Cell|RestGrid]) :-
+    rebuild_shuffled_grid(RestS, Points, RestGrid).

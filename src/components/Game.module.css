@@ -230,3 +230,42 @@
     transform: scale(1);
   }
 }
+
+.shufflingOverlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 15, 25, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(3px);
+}
+
+.shufflingModal {
+    background: #2a2a35;
+    padding: 25px 50px;
+    border-radius: 16px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: pulseShuffle 1.5s infinite;
+}
+
+.shufflingModal h2 {
+    margin: 0 0 10px 0;
+    font-size: 1.2rem;
+    color: #ffcc00;
+}
+
+.shufflingModal p {
+    margin: 0;
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+@keyframes pulseShuffle {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+    100% { transform: scale(1); }
+}
