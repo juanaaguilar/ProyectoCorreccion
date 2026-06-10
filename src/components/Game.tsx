@@ -312,7 +312,7 @@ function Game() {
         <div className={styles.gameOverOverlay}>
           <div className={styles.gameOverModal}>
             <h2 className={styles.gameOverTitle}>
-              {isVictory ? "¡Victoria!" : "Sin turnos"}
+              {isVictory ? "¡Victoria!" : "Sin movimientos disponibles"}
             </h2>
             {/* Como initGame ya reinicia el estado y llama a Prolog, nos sirve perfecto para reiniciar */}
             <button onClick={initGame} className={styles.restartButton}>

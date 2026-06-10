@@ -73,7 +73,17 @@ connect(Grid, NumOfColumns, Path, Effects) :-
     
     length(Grid, TotalCells),
     findall(Idx, (member(Idx, PathSet), nth0(Idx, Grid, Cell), is_bomb_cell(Cell)), PathBombs),
-    append(InsideSet, PathBombs, AllBombsToExplode),
+    % Atrapamos los Nesting Dots de nivel 1 que van a recibir daño y convertirse en bombas
+    append(InsideSet, PathSet, RemovedInF1),
+    findall(Idx, (
+        nth0(Idx, Grid, Cell), 
+        is_n1_dot(Cell), 
+        (memberchk(Idx, RemovedInF1) ; is_adjacent_to_cleared(Idx, NumOfColumns, TotalCells, RemovedInF1))
+    ), N1BombsToExplode),
+    
+    % Todas las bombas que DEBEN explotar en este turno
+    append(InsideSet, PathBombs, TempBombs),
+    append(TempBombs, N1BombsToExplode, AllBombsToExplode),
     list_to_set(AllBombsToExplode, UniqueBombsToActivate),
     
     ( UniqueBombsToActivate = [] ->
@@ -133,7 +143,11 @@ connect(Grid, NumOfColumns, Path, Effects) :-
 
 procesar_celdas_impl(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
 procesar_celdas_impl(OriginalGrid, [Cell|Rest], CellsToClear, InsideSet, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
-    ( memberchk(Index, CellsToClear) -> 
+    ( is_nesting_dot(Cell), (memberchk(Index, CellsToClear) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, CellsToClear)) ->
+        % Si es un obstáculo gris y está en la explosión o al lado, se achica
+        damage_nesting_dot(Cell, NewCell),
+        AccW1 is AccW, AccC1 is AccC
+    ; memberchk(Index, CellsToClear) -> 
         ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) ->
             NewCell = [e, ~]
         ;
@@ -154,7 +168,11 @@ procesar_celdas_impl(OriginalGrid, [Cell|Rest], CellsToClear, InsideSet, NumOfCo
 
 procesar_celdas_fase1(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
 procesar_celdas_fase1(OriginalGrid, [Cell|Rest], NormalPathSet, ActiveBombs, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
-    ( memberchk(Index, NormalPathSet) ->
+    ( is_nesting_dot(Cell), (memberchk(Index, NormalPathSet) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, NormalPathSet)) ->
+        % APLICAMOS EL DAÑO ESPECIAL DE FASE 1
+        damage_nesting_dot_fase1(Cell, NewCell),
+        AccW1 is AccW, AccC1 is AccC
+    ; memberchk(Index, NormalPathSet) ->
         ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) ->
             NewCell = [e, ~]
         ;
@@ -173,8 +191,6 @@ procesar_celdas_fase1(OriginalGrid, [Cell|Rest], NormalPathSet, ActiveBombs, Num
     ),
     Index1 is Index + 1,
     procesar_celdas_fase1(OriginalGrid, Rest, NormalPathSet, ActiveBombs, NumOfColumns, TotalCells, Index1, NewRest, AccW1, FinalW, AccC1, FinalC).
-
-
 % ==============================================================================
 % 3. MÓDULO DE GRAVEDAD
 % ==============================================================================
@@ -357,6 +373,9 @@ is_point_cell([b]).
 is_point_cell([b, ~]).
 is_point_cell([b_act]).      % Bombas cayendo en Fase 1
 is_point_cell([b_act, ~]).
+is_point_cell([n1]). is_point_cell([n1, ~]).
+is_point_cell([n2]). is_point_cell([n2, ~]).
+is_point_cell([n3]). is_point_cell([n3, ~]).
 
 is_bomb_cell([b]).
 is_bomb_cell([b, ~]).
@@ -370,7 +389,33 @@ strip_water([C], [C]).
 apply_water(OriginalCell, Point, FinalCell) :- has_water(OriginalCell), strip_water(Point, [C]), FinalCell = [C, ~], !.
 apply_water(_, Point, FinalCell) :- strip_water(Point, [C]), FinalCell = [C].
 
+% --- HELPERS DE NESTING DOTS (OBSTÁCULOS GRISES) ---
 
+is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, ClearedSet) :-
+    neighbor_index(Index, NumOfColumns, TotalCells, NIdx),
+    memberchk(NIdx, ClearedSet), !.
+
+is_nesting_dot([n1]). is_nesting_dot([n1, ~]).
+is_nesting_dot([n2]). is_nesting_dot([n2, ~]).
+is_nesting_dot([n3]). is_nesting_dot([n3, ~]).
+
+is_n1_dot([n1]). is_n1_dot([n1, ~]).
+
+% Daño estándar (se usa en Caso A o si es golpeado por una explosión en Fase 2)
+damage_nesting_dot([n3], [n2]).
+damage_nesting_dot([n3, ~], [n2, ~]).
+damage_nesting_dot([n2], [n1]).
+damage_nesting_dot([n2, ~], [n1, ~]).
+damage_nesting_dot([n1], [b]).
+damage_nesting_dot([n1, ~], [b, ~]).
+
+% Daño en Fase 1: El n1 se convierte en b_act para que explote instantáneamente
+damage_nesting_dot_fase1([n3], [n2]).
+damage_nesting_dot_fase1([n3, ~], [n2, ~]).
+damage_nesting_dot_fase1([n2], [n1]).
+damage_nesting_dot_fase1([n2, ~], [n1, ~]).
+damage_nesting_dot_fase1([n1], [b_act]).
+damage_nesting_dot_fase1([n1, ~], [b_act, ~]).
 % ==============================================================================
 % 8. MÓDULO DE LOGROS Y OBJETIVOS (UI)
 % ==============================================================================

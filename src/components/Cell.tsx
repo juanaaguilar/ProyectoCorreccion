@@ -26,6 +26,38 @@ function Cell({ value, onMouseEnter, onMouseDown, isBomb, isExplosionRadius }: C
             case "~": return <div className={styles.water} key={i} />;
             case "-": return <div className={styles.empty} key={i} />;
             case "e": return <div className={styles.empty} key={i} />;
+           // --- NESTING DOTS ---
+            case "n3":
+            case "n2":
+            case "n1":
+                // Escala de colores: claro -> medio -> oscuro
+                const nColor = cellContent === "n3" ? "#575759" : cellContent === "n2" ? "#3d3d3d" : "#2a2a2b";
+                const nSize = cellContent === "n3" ? "85%" : cellContent === "n2" ? "65%" : "45%";
+                
+                return (
+                    <button 
+                        className={styles.color} 
+                        style={{
+                            cursor: 'default', 
+                            border: 'none',
+                            display: 'flex',            // Clave para centrar perfectamente
+                            alignItems: 'center', 
+                            justifyContent: 'center'
+                        }} 
+                        key={i}
+                    >
+                        <div style={{ 
+                            backgroundColor: nColor, 
+                            width: nSize, 
+                            height: nSize, 
+                            aspectRatio: "1 / 1",       // Fiel guardián de la redondez
+                            borderRadius: "50%", 
+                            margin: "auto",
+                            transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)" // Animación más "elástica"
+                        }} />
+                    </button>
+                );
+            // -----------------------------
             default: 
                 // 2. AÑADIDO: Lógica condicional para las animaciones
                 let dotClass = styles.color;
