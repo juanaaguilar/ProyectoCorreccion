@@ -6,6 +6,7 @@
 :-use_module(library(lists)).
 :-discontiguous proylcc:connect/4.
 :-discontiguous proylcc:is_obstacle_cell/1.
+:- discontiguous proylcc:neighbor_9_index/4.
 :- use_module(library(random)).
 
 %No borrar: %%%%%%%%%%%%%
@@ -106,7 +107,7 @@ connect(Grid, NumOfColumns, Path, Effects) :-
         )
         
     ;
-        % --- CASO B: CON BOMBAS ---
+       % --- CASO B: CON BOMBAS ---
         subtract(PathSet, PathBombs, NormalPathSet),
         procesar_celdas_fase1(Grid, Grid, NormalPathSet, UniqueBombsToActivate, NumOfColumns, TotalCells, 0, GridF1, 0, Water1, 0, Color1),
         propagar_agua(GridF1, NumOfColumns, GridAgua1),
@@ -117,24 +118,13 @@ connect(Grid, NumOfColumns, Path, Effects) :-
         get_active_bombs(IntermediateGridRaw, ActiveBombIndices),
         normalize_grid(IntermediateGridRaw, IntermediateGrid),
         
-        calcular_radio_explosion(ActiveBombIndices, NumOfColumns, TotalCells, ExplosionSet),
-        list_to_set(ExplosionSet, CellsToClear),
-        procesar_celdas_impl(IntermediateGrid, IntermediateGrid, CellsToClear, [], NumOfColumns, TotalCells, 0, GridF2, 0, Water2, 0, Color2),
-        propagar_agua(GridF2, NumOfColumns, GridAgua2),
-        contar_agua_nueva(GridF2, GridAgua2, AguaProp2),
-        WaterTotal2 is Water2 + AguaProp2,
+        % Guardamos el fotograma 1 (La primera jugada, las bombas caen a su lugar)
+        BaseEffect = effect(IntermediateGrid, [achieved([[Color, Color1], [~, WaterTotal1]])]),
         
-        apply_gravity(GridAgua2, NumOfColumns, RawFinalGrid),
+        % Invocamos el bucle mágico de cascada que devolverá el resto de los fotogramas
+        detonar_cascada(IntermediateGrid, ActiveBombIndices, NumOfColumns, TotalCells, Color, WaterTotal1, Color1, CascadeEffects),
         
-        % Verificamos si hay movimientos y mezclamos si es necesario
-        ensure_valid_moves(RawFinalGrid, NumOfColumns, FinalGrid, WasShuffled),
-        BaseEffect2 = effect(RawFinalGrid, [achieved([[Color, Color2], [~, WaterTotal2]]), explosions(ActiveBombIndices, ExplosionSet)]),
-        
-        ( WasShuffled == true ->
-            Effects = [effect(IntermediateGrid, [achieved([[Color, Color1], [~, WaterTotal1]])]), BaseEffect2, effect(FinalGrid, [shuffled])]
-        ;
-            Effects = [effect(IntermediateGrid, [achieved([[Color, Color1], [~, WaterTotal1]])]), BaseEffect2]
-        )
+        Effects = [BaseEffect | CascadeEffects]
     ).
 
 % ==============================================================================
@@ -324,9 +314,89 @@ neighbor_9_index(Index, NumOfColumns, TotalCells, NeighborIndex) :-
 
 
 % ==============================================================================
-% 6. MÓDULO DE EXPLOSIONES Y BOMBAS
+% 6. MÓDULO DE EXPLOSIONES Y CASCADAS RECURSIVAS
 % ==============================================================================
+/*detonar_cascada destruye las bombas actuales, marca a las bombas adyacentes como activas (b_act), 
+aplica gravedad para que caigan a su nueva posición,
+ y se vuelve a llamar a sí misma para detonarlas en el siguiente fotograma.*/
 
+ 
+% Caso base: Ya no hay bombas por detonar. Verificamos si hay que mezclar el tablero y terminamos.
+detonar_cascada(Grid, [], NumOfColumns, _, _, _, _, Effects) :-
+    ensure_valid_moves(Grid, NumOfColumns, FinalGrid, WasShuffled),
+    ( WasShuffled == true ->
+        Effects = [effect(FinalGrid, [shuffled])]
+    ;
+        Effects = []
+    ).
+
+% Caso recursivo: Hay bombas listas para detonar en este fotograma
+detonar_cascada(Grid, [Bomb|RestBombs], NumOfColumns, TotalCells, Color, AccWater, AccColor, [CurrentEffect | RestEffects]) :-
+    BombsToExplode = [Bomb|RestBombs],
+    
+    % 1. Calcular el radio de explosión actual
+    calcular_radio_explosion(BombsToExplode, NumOfColumns, TotalCells, ExplosionSetRaw),
+    list_to_set(ExplosionSetRaw, ExplosionSet),
+
+    % 2. Identificar bombas encadenadas (que están en el radio de la explosión pero no detonan HOY)
+    findall(N, (
+        member(N, ExplosionSet),
+        nth0(N, Grid, Cell),
+        is_bomb_cell(Cell),
+        \+ memberchk(N, BombsToExplode)
+    ), NextBombsRaw),
+    list_to_set(NextBombsRaw, NextBombs),
+
+    % 3. Las bombas encadenadas sobreviven al radio de esta explosión (se detonarán en la próxima iteración)
+    subtract(ExplosionSet, NextBombs, TrueCellsToClear),
+
+    % 4. Procesar la grilla (las que explotan se vacían, las encadenadas se marcan como "activas")
+    procesar_celdas_cascada(Grid, Grid, TrueCellsToClear, NextBombs, NumOfColumns, TotalCells, 0, ClearedGrid, 0, WaterInc, 0, ColorInc),
+
+    % 5. Agua y Gravedad
+    propagar_agua(ClearedGrid, NumOfColumns, WaterGrid),
+    contar_agua_nueva(ClearedGrid, WaterGrid, WaterProp),
+    NewAccWater is AccWater + WaterInc + WaterProp,
+    NewAccColor is AccColor + ColorInc,
+
+    apply_gravity(WaterGrid, NumOfColumns, GravGrid),
+
+    % 6. Buscar dónde cayeron las bombas encadenadas tras la gravedad y normalizar a bombas estándar
+    get_active_bombs(GravGrid, NextActiveBombs),
+    normalize_grid(GravGrid, FinalIterGrid),
+
+    % 7. Crear el EFECTO de la interfaz para ESTE turno
+    CurrentEffect = effect(FinalIterGrid, [achieved([[Color, NewAccColor], [~, NewAccWater]]), explosions(BombsToExplode, ExplosionSet)]),
+
+    % 8. Llamada recursiva: detonar las bombas encadenadas en la próxima iteración (fotograma)
+    detonar_cascada(FinalIterGrid, NextActiveBombs, NumOfColumns, TotalCells, Color, NewAccWater, NewAccColor, RestEffects).
+
+
+% Procesador exclusivo para turnos de cascada
+procesar_celdas_cascada(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
+procesar_celdas_cascada(OriginalGrid, [Cell|Rest], CellsToClear, BombsToActivate, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
+    ( is_nesting_dot(Cell), (memberchk(Index, CellsToClear) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, CellsToClear)) ->
+        % Si el radio golpea un Nesting Dot, sufre daño de fase 1. 
+        % (Si llega a nivel 1, se convierte en b_act y se suma mágicamente a la próxima cascada!)
+        damage_nesting_dot_fase1(Cell, NewCell),
+        AccW1 is AccW, AccC1 is AccC
+    ; memberchk(Index, BombsToActivate) ->
+        % Las bombas encadenadas se preparan para el próximo turno
+        determinar_bomba_activa(Cell, NewCell),
+        AccW1 is AccW, AccC1 is AccC
+    ; memberchk(Index, CellsToClear) ->
+        ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) -> NewCell = [e, ~] ; NewCell = [e] ),
+        calcula_agua_nueva(Cell, NewCell, IncW),
+        calcula_color_eliminado(Cell, IncC),
+        AccW1 is AccW + IncW, AccC1 is AccC + IncC
+    ;
+        NewCell = Cell,
+        AccW1 is AccW, AccC1 is AccC
+    ),
+    Index1 is Index + 1,
+    procesar_celdas_cascada(OriginalGrid, Rest, CellsToClear, BombsToActivate, NumOfColumns, TotalCells, Index1, NewRest, AccW1, FinalW, AccC1, FinalC).
+
+% --- HELPERS DE EXPLOSIONES ---
 calcular_radio_explosion([], _, _, []).
 calcular_radio_explosion([BombIdx|Rest], NumOfColumns, TotalCells, ExplosionSet) :-
     calcular_radio_explosion(Rest, NumOfColumns, TotalCells, RestExplosion),
@@ -334,7 +404,8 @@ calcular_radio_explosion([BombIdx|Rest], NumOfColumns, TotalCells, ExplosionSet)
     append(Neighbors, RestExplosion, ExplosionSetRaw),
     list_to_set(ExplosionSetRaw, ExplosionSet).
 
-get_active_bombs(Grid, Indices) :- findall(Idx, (nth0(Idx, Grid, Cell), is_active_bomb(Cell)), Indices).
+get_active_bombs(Grid, Indices) :- 
+    findall(Idx, (nth0(Idx, Grid, Cell), is_active_bomb(Cell)), Indices).
 
 determinar_celda_bomba(Cell, Cell) :- is_empty_cell(Cell), !.
 determinar_celda_bomba([-], [-]) :- !.
@@ -350,7 +421,6 @@ normalize_grid([], []).
 normalize_grid([[b_act]|Rest], [[b]|NormRest]) :- !, normalize_grid(Rest, NormRest).
 normalize_grid([[b_act, ~]|Rest], [[b, ~]|NormRest]) :- !, normalize_grid(Rest, NormRest).
 normalize_grid([Cell|Rest], [Cell|NormRest]) :- normalize_grid(Rest, NormRest).
-
 
 % ==============================================================================
 % 7. MÓDULO DE IDENTIFICADORES Y HELPERS BÁSICOS
