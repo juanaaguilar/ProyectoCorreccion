@@ -116,12 +116,19 @@
 
 .menuBombWrapper {
   position: absolute;
-  top: 32%;
-  right: 14%;
+  top: 10%;
+  right: 12%;
   width: 70px;
   height: 70px;
   pointer-events: none;
   z-index: 1;
+}
+
+@media (max-width: 720px) {
+  .menuBombWrapper {
+    top: 8%;
+    right: 10%;
+  }
 }
 
 .menuBomb {

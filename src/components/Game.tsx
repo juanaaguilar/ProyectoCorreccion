@@ -324,18 +324,18 @@ function Game() {
           {bombExploded && <span className={styles.bombBlast} />}
         </div>
         <div className={styles.dotsContainer} aria-hidden>
-          <span className={styles.dot} style={{ top: '6%', left: '8%', width: '28px', height: '28px', backgroundColor: '#e84d60' }} />
+          <span className={styles.dot} style={{ top: '7%', left: '8%', width: '28px', height: '28px', backgroundColor: '#e84d60' }} />
           <span className={styles.dot} style={{ top: '16%', left: '78%', width: '18px', height: '18px', backgroundColor: '#7bbdc9' }} />
-          <span className={styles.dot} style={{ top: '58%', left: '16%', width: '22px', height: '22px', backgroundColor: '#2cac75' }} />
-          <span className={styles.dot} style={{ top: '72%', left: '72%', width: '16px', height: '16px', backgroundColor: '#b388e3' }} />
-          <span className={styles.dot} style={{ top: '40%', left: '50%', width: '32px', height: '32px', backgroundColor: '#fecd6c' }} />
-          <span className={styles.dot} style={{ top: '50%', left: '85%', width: '12px', height: '12px', backgroundColor: '#e84d60' }} />
-          <span className={styles.dot} style={{ top: '12%', left: '46%', width: '14px', height: '14px', backgroundColor: '#2cac75' }} />
-          <span className={styles.dot} style={{ top: '30%', left: '30%', width: '10px', height: '10px', backgroundColor: '#b388e3' }} />
-          <span className={styles.dot} style={{ top: '24%', left: '60%', width: '20px', height: '20px', backgroundColor: '#e84d60' }} />
-          <span className={styles.dot} style={{ top: '68%', left: '40%', width: '14px', height: '14px', backgroundColor: '#7bbdc9' }} />
-          <span className={styles.dot} style={{ top: '84%', left: '20%', width: '18px', height: '18px', backgroundColor: '#2cac75' }} />
-          <span className={styles.dot} style={{ top: '10%', left: '86%', width: '12px', height: '12px', backgroundColor: '#fecd6c' }} />
+          <span className={styles.dot} style={{ top: '56%', left: '18%', width: '22px', height: '22px', backgroundColor: '#2cac75' }} />
+          <span className={styles.dot} style={{ top: '70%', left: '74%', width: '16px', height: '16px', backgroundColor: '#b388e3' }} />
+          <span className={styles.dot} style={{ top: '42%', left: '50%', width: '32px', height: '32px', backgroundColor: '#fecd6c' }} />
+          <span className={styles.dot} style={{ top: '54%', left: '86%', width: '12px', height: '12px', backgroundColor: '#e84d60' }} />
+          <span className={styles.dot} style={{ top: '10%', left: '56%', width: '14px', height: '14px', backgroundColor: '#2cac75' }} />
+          <span className={styles.dot} style={{ top: '28%', left: '24%', width: '10px', height: '10px', backgroundColor: '#b388e3' }} />
+          <span className={styles.dot} style={{ top: '22%', left: '62%', width: '20px', height: '20px', backgroundColor: '#e84d60' }} />
+          <span className={styles.dot} style={{ top: '66%', left: '36%', width: '14px', height: '14px', backgroundColor: '#7bbdc9' }} />
+          <span className={styles.dot} style={{ top: '82%', left: '22%', width: '18px', height: '18px', backgroundColor: '#2cac75' }} />
+          <span className={styles.dot} style={{ top: '8%', left: '84%', width: '12px', height: '12px', backgroundColor: '#fecd6c' }} />
         </div>
         <div className={styles.menuCard}>
           <div className={styles.menuHeader}>
