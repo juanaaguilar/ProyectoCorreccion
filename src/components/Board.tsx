@@ -19,6 +19,29 @@ interface BoardProps {
 }
 
 function Board({ grid, numOfColumns, path, onPathChange, onDone, readonly, explosionData }: BoardProps) {
+    const [dropTick, setDropTick] = React.useState(0);
+    const [changedPositions, setChangedPositions] = React.useState<boolean[]>([]);
+    const prevGridRef = React.useRef<Grid | null>(null);
+
+    // When grid changes, compute which cell positions actually changed and increment dropTick
+    useEffect(() => {
+        const prev = prevGridRef.current;
+        if (!prev) {
+            // First time: mark all as unchanged (or changed if you prefer)
+            setChangedPositions(new Array(grid.length).fill(true));
+        } else {
+            const changed = grid.map((cell, pos) => {
+                try {
+                    return JSON.stringify(cell) !== JSON.stringify(prev[pos]);
+                } catch (e) {
+                    return cell !== prev[pos];
+                }
+            });
+            setChangedPositions(changed);
+        }
+        prevGridRef.current = grid;
+        setDropTick(t => t + 1);
+    }, [grid]);
 
     function onDotDown(pos: number) {
         if (readonly) {
@@ -87,9 +110,12 @@ function Board({ grid, numOfColumns, path, onPathChange, onDone, readonly, explo
                             onMouseDown={() => onDotDown(pos)}
                             onMouseEnter={() => onDotHover(pos)}
                             key={pos}
+                            dropTick={dropTick}
+                            shouldDrop={changedPositions[pos]}
                             // Pasamos las props booleanas al hijo
                             isBomb={isBomb}
                             isExplosionRadius={isExplosionRadius}
+                            isSelected={path.includes(pos)}
                         />
                         );
                 })}

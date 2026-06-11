@@ -62,11 +62,22 @@ class PengineClient {
     */
 
     handleFailure() {
-        console.log("Failure");
+        const callback = this.queryCallbacks[this.queryId];
+        if (callback) {
+            callback.resolve(false);
+            delete this.queryCallbacks[this.queryId];
+        } else {
+            console.log("Pengine failure");
+        }
     }
 
     handleError(error: any) {
-        throw error;
+        console.error("Pengine error", error);
+        const callback = this.queryCallbacks[this.queryId];
+        if (callback) {
+            callback.reject(error);
+            delete this.queryCallbacks[this.queryId];
+        }
     }
 
     /**

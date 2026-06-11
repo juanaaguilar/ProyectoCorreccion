@@ -1,89 +1,124 @@
+import React, { useEffect, useState } from "react";
 import { CellContent, colorToCss } from "./model";
 import styles from "./Cell.module.css";
-
 
 interface CellProps {
     value: CellContent[];
     onMouseEnter: () => void;
     onMouseDown: () => void;
-    isBomb?: boolean;            
-    isExplosionRadius?: boolean;  
+    isBomb?: boolean;
+    isExplosionRadius?: boolean;
+    dropTick?: number;
+    shouldDrop?: boolean;
+    isSelected?: boolean;
 }
-/* Lo modifique para q si llega un null o undefined no rompa, 
-y para que acepte tanto un string como un array de strings **/
 
-// 1. AÑADIDO: Extraemos isBomb e isExplosionRadius de las props
-function Cell({ value, onMouseEnter, onMouseDown, isBomb, isExplosionRadius }: CellProps) {
-    // console.log("Cell value:", JSON.stringify(value));
-    // console.log("El valor de la celda es:", value, "y su tipo es:", typeof value);
-    
-    if (!value) return <div className={styles.empty} />;
+function Cell({
+    value,
+    onMouseEnter,
+    onMouseDown,
+    isBomb,
+    isExplosionRadius
+    , dropTick, shouldDrop, isSelected
+}: CellProps) {
+
+    const [isDropping, setIsDropping] = useState(false as boolean);
+
+    useEffect(() => {
+        if (typeof dropTick === 'number' && shouldDrop) {
+            setIsDropping(true);
+            const t = setTimeout(() => setIsDropping(false), 640);
+            return () => clearTimeout(t);
+        }
+    }, [dropTick, shouldDrop]);
+
+    if (!value) {
+        return <div className={styles.empty} />;
+    }
 
     const normalizedValue = Array.isArray(value) ? value : [value];
 
     const content = normalizedValue.map((cellContent, i) => {
         switch (cellContent) {
-            case "~": return <div className={styles.water} key={i} />;
-            case "-": return <div className={styles.empty} key={i} />;
-            case "e": return <div className={styles.empty} key={i} />;
-           // --- NESTING DOTS ---
+
+            case "~":
+                return <div className={styles.water} key={i} />;
+
+            case "-":
+            case "e":
+                return <div className={styles.empty} key={i} />;
+
+            /* ---------- NESTING DOTS ---------- */
+
             case "n3":
-            case "n2":
-            case "n1":
-                // Escala de colores: claro -> medio -> oscuro
-                const nColor = cellContent === "n3" ? "#575759" : cellContent === "n2" ? "#3d3d3d" : "#2a2a2b";
-                const nSize = cellContent === "n3" ? "85%" : cellContent === "n2" ? "65%" : "45%";
-                
                 return (
-                    <button 
-                        className={styles.color} 
-                        style={{
-                            cursor: 'default', 
-                            border: 'none',
-                            display: 'flex',            // Clave para centrar perfectamente
-                            alignItems: 'center', 
-                            justifyContent: 'center'
-                        }} 
+                    <button
+                        className={`${styles.color} ${styles.n3}`}
                         key={i}
                     >
-                        <div style={{ 
-                            backgroundColor: nColor, 
-                            width: nSize, 
-                            height: nSize, 
-                            aspectRatio: "1 / 1",       // Fiel guardián de la redondez
-                            borderRadius: "50%", 
-                            margin: "auto",
-                            transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)" // Animación más "elástica"
-                        }} />
+                        <div />
                     </button>
                 );
-            // -----------------------------
-            default: 
-                // 2. AÑADIDO: Lógica condicional para las animaciones
-                let dotClass = styles.color;
-                
-                // Si colorToCss rompe cuando le pasas una "b" (de bomba), 
-                // podés manejarlo acá de forma segura.
-                let dotStyle = { backgroundColor: cellContent === "b" ? "#111" : colorToCss(cellContent) };
 
-                if (isBomb) {
-                    dotClass = `${styles.color} ${styles.bombAnim}`;
-                    dotStyle.backgroundColor = "#111"; // Forzamos negro
-                } else if (isExplosionRadius) {
-                    dotClass = `${styles.color} ${styles.flashAnim}`;
-                    dotStyle.backgroundColor = "#fff"; // Forzamos blanco
+            case "n2":
+                return (
+                    <button
+                        className={`${styles.color} ${styles.n2}`}
+                        key={i}
+                    >
+                        <div />
+                    </button>
+                );
+
+            case "n1":
+                return (
+                    <button
+                        className={`${styles.color} ${styles.n1} ${styles.n1Critical}`}
+                        key={i}
+                    >
+                        <div />
+                    </button>
+                );
+
+            /* ---------- DOTS NORMALES Y BOMBAS ---------- */
+
+            default: {
+
+                let dotClass = styles.color;
+
+                // Punto seleccionado
+                if (isSelected) {
+                    dotClass += ` ${styles.selected}`;
                 }
+
+                // Bomba
+                if (cellContent === "b" || isBomb) {
+                    dotClass += ` ${styles.bombAnim}`;
+                }
+
+                // Explosión
+                if (isExplosionRadius) {
+                    dotClass += ` ${styles.flashAnim}`;
+                }
+
+                const dotStyle =
+                    cellContent === "b"
+                        ? {}
+                        : {
+                              backgroundColor: colorToCss(cellContent)
+                          };
 
                 return (
                     <button
-                        className={dotClass}
-                        onMouseDown={onMouseDown}
-                        onMouseEnter={onMouseEnter}
-                        key={i}
-                    >
-                        <div style={dotStyle} />
-                    </button>
+                            className={`${dotClass} ${isDropping ? styles.dropAnim : ''}`}
+                            onMouseDown={onMouseDown}
+                            onMouseEnter={onMouseEnter}
+                            key={i}
+                        >
+                            <div style={dotStyle} />
+                        </button>
                 );
+            }
         }
     });
 

@@ -7,9 +7,19 @@ interface ConnectorProps {
 }
 
 function Connector({ type, color }: ConnectorProps) {
+
+    const active = color !== undefined;
+
     return (
         <div className={styles.connector}>
-            <div className={`${styles.connectorLine} ${type === 'vertical' ? styles.vertical : ''}`} style={{ background: color }} />
+            <div
+                className={`
+                    ${styles.connectorLine}
+                    ${type === "vertical" ? styles.vertical : ""}
+                    ${active ? styles.connectorActive : ""}
+                `}
+                style={{ background: color }}
+            />
         </div>
     );
 }

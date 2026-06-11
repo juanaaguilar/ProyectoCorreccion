@@ -2,7 +2,8 @@
 
 **Materia:** Lógica para Ciencias de la Computación  
 **Tecnologías:** Prolog + React  
-**Integrantes:** * Aguilar Juana  
+**Integrantes:** 
+* Aguilar Juana  
 * Damiani Luana  
 * Gonzalez Aburto Ignacio  
 

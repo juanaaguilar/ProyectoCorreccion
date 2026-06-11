@@ -23,6 +23,13 @@ function Game() {
   const [path, setPath] = useState<number[]>([]);
   const [waiting, setWaiting] = useState(false);
   const [isShuffling, setIsShuffling] = useState(false);
+  const [showMenu, setShowMenu] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
+  const [bombActivated, setBombActivated] = useState(false);
+  const [bombExploded, setBombExploded] = useState(false);
+  const [level, setLevel] = useState<number>(1);
+  const maxLevel = 2;
   //preguntar si podemos borrar esto je
   //const { grid: historyGrid, objectives: historyObjectives } = useHistory({ grid: grid!, objectives, waiting });
   const [explosionData, setExplosionData] = useState<ExplosionData | null>(null);
@@ -41,20 +48,20 @@ function Game() {
   }, []);
 
   async function connectToPenginesServer() {
-    setPengine(await PengineClient.create()); // Await until the server is initialized
+    const created = await PengineClient.create();
+    setPengine(created); // Await until the server is initialized
+    return created;
   }
 
   useEffect(() => {
-    if (pengine) {
-      // This is executed after pengine was set.
-      initGame();
-    }
+    // Do not auto-start the game on connect. The user must press "Jugar".
   }, [pengine]);
 
 
-  async function initGame() {
-    const queryS = 'init(Grid, NumOfColumns, Goals, Moves)';
-    const response = await pengine!.query(queryS);
+  async function initGame(pe?: any, levelToLoad: number = level) {
+    const queryS = `init(${levelToLoad}, Grid, NumOfColumns, Goals, Moves)`;
+    const engine = pe || pengine;
+    const response = await engine!.query(queryS);
     setGrid(response['Grid']);
     setNumOfColumns(response['NumOfColumns']);
     setMoves(response['Moves']);
@@ -69,6 +76,41 @@ function Game() {
       moves: response['Moves']
     }]);
     setCurrentStep(0);
+  }
+
+  function formatError(err: any) {
+    if (typeof err === 'string') return err;
+    if (err instanceof Error) return err.message;
+    try {
+      return JSON.stringify(err, null, 2);
+    } catch {
+      return String(err);
+    }
+  }
+
+  async function startGame() {
+    setMenuError(null);
+    setConnecting(true);
+    try {
+      setShowMenu(false);
+      const engine = pengine || await connectToPenginesServer();
+      await initGame(engine, level);
+    } catch (err) {
+      console.error('Failed to start game:', err);
+      setMenuError(formatError(err) || 'No se pudo iniciar el nivel. Verifica que el servidor Pengines esté levantado.');
+      setShowMenu(true);
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  function triggerBombExplosion() {
+    setBombActivated(true);
+    setTimeout(() => {
+      setBombExploded(true);
+      setTimeout(() => setBombExploded(false), 450);
+    }, 300);
+    setTimeout(() => setBombActivated(false), 520);
   }
 
   /**
@@ -240,7 +282,79 @@ function Game() {
       setMoves(snapshot.moves);
     }
   }
+
+  async function restartLevel() {
+    await initGame(undefined, level);
+  }
+
+  async function goToNextLevel() {
+    const next = Math.min(level + 1, maxLevel);
+    setLevel(next);
+    await initGame(undefined, next);
+  }
+
+  function goToMenu() {
+    setShowMenu(true);
+    setLevel(1);
+    setGrid(null);
+    setNumOfColumns(null);
+    setMoves(null);
+    setObjectives({});
+    setPath([]);
+    setWaiting(false);
+    setIsShuffling(false);
+    setExplosionData(null);
+    setHistory([]);
+    setCurrentStep(0);
+  }
+
   // Don't display anything until the Prolog server is ready (alternatively render a loading UI).
+  if (showMenu) {
+    return (
+      <div className={styles.startMenu}>
+        <div className={styles.menuBombWrapper}>
+          <button
+            type="button"
+            className={`${styles.menuBomb} ${bombActivated ? styles.menuBombActive : styles.menuBombInitial} ${bombExploded ? styles.bombExploded : ''}`}
+            onClick={triggerBombExplosion}
+            aria-label="Toca la bomba"
+          >
+            <span className={`${styles.bombCore} ${bombActivated ? styles.bombCoreActive : styles.bombCoreInitial}`} />
+          </button>
+          {bombExploded && <span className={styles.bombBlast} />}
+        </div>
+        <div className={styles.dotsContainer} aria-hidden>
+          <span className={styles.dot} style={{ top: '6%', left: '8%', width: '28px', height: '28px', backgroundColor: '#e84d60' }} />
+          <span className={styles.dot} style={{ top: '16%', left: '78%', width: '18px', height: '18px', backgroundColor: '#7bbdc9' }} />
+          <span className={styles.dot} style={{ top: '58%', left: '16%', width: '22px', height: '22px', backgroundColor: '#2cac75' }} />
+          <span className={styles.dot} style={{ top: '72%', left: '72%', width: '16px', height: '16px', backgroundColor: '#b388e3' }} />
+          <span className={styles.dot} style={{ top: '40%', left: '50%', width: '32px', height: '32px', backgroundColor: '#fecd6c' }} />
+          <span className={styles.dot} style={{ top: '50%', left: '85%', width: '12px', height: '12px', backgroundColor: '#e84d60' }} />
+          <span className={styles.dot} style={{ top: '12%', left: '46%', width: '14px', height: '14px', backgroundColor: '#2cac75' }} />
+          <span className={styles.dot} style={{ top: '30%', left: '30%', width: '10px', height: '10px', backgroundColor: '#b388e3' }} />
+          <span className={styles.dot} style={{ top: '24%', left: '60%', width: '20px', height: '20px', backgroundColor: '#e84d60' }} />
+          <span className={styles.dot} style={{ top: '68%', left: '40%', width: '14px', height: '14px', backgroundColor: '#7bbdc9' }} />
+          <span className={styles.dot} style={{ top: '84%', left: '20%', width: '18px', height: '18px', backgroundColor: '#2cac75' }} />
+          <span className={styles.dot} style={{ top: '10%', left: '86%', width: '12px', height: '12px', backgroundColor: '#fecd6c' }} />
+        </div>
+        <div className={styles.menuCard}>
+          <div className={styles.menuHeader}>
+            <h1 className={styles.menuTitle} aria-label="Two Dots">
+              Tw<span className={styles.titleDot} style={{ backgroundColor: '#e84d60' }} /> D<span className={styles.titleDot} style={{ backgroundColor: '#7bbdc9' }} /><span className={styles.titleT}>t</span><span className={styles.titleS}>s</span>
+            </h1>
+          </div>
+          <div className={styles.menuActions}>
+            <button className={styles.playButton} onClick={startGame} disabled={connecting}>
+              {connecting ? 'Conectando...' : 'Jugar'}
+            </button>
+          </div>
+          {menuError && <div className={styles.menuError}>{menuError}</div>}
+          
+        </div>
+      </div>
+    );
+  }
+
   if (!pengine) {
     return null;
   }
@@ -259,6 +373,11 @@ function Game() {
   return (
     <div className={styles.game}>
       <div className={styles.header}>
+        <button className={styles.backButton} onClick={goToMenu}>
+          <span className={styles.icon}>&lt;</span>
+          
+        </button>
+
         <div className={styles.moves}>
           Moves <span>{moves}</span>
         </div>
@@ -314,10 +433,21 @@ function Game() {
             <h2 className={styles.gameOverTitle}>
               {isVictory ? "¡Victoria!" : "Sin movimientos disponibles"}
             </h2>
-            {/* Como initGame ya reinicia el estado y llama a Prolog, nos sirve perfecto para reiniciar */}
-            <button onClick={initGame} className={styles.restartButton}>
-              Volver a jugar
-            </button>
+            {isVictory ? (
+              level < maxLevel ? (
+                <button onClick={goToNextLevel} className={styles.restartButton}>
+                  Siguiente nivel
+                </button>
+              ) : (
+                <button onClick={goToMenu} className={styles.restartButton}>
+                  Volver al menú
+                </button>
+              )
+            ) : (
+              <button onClick={restartLevel} className={styles.restartButton}>
+                Volver a jugar
+              </button>
+            )}
           </div>
         </div>
       )}
