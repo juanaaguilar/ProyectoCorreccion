@@ -91,8 +91,20 @@ A fin de asegurar la robustez de la lógica implementada en Prolog y su correcto
 
 ### Caso de Prueba 2: Activación de Lazo Cerrado y Conversión a Bombas Internas
 * **Descripción:** Conexión en forma geométrica cerrada (cuadrado). Se constata la correcta ejecución de `is_closed_loop/1` y `find_inside_cells/4`, verificando la eliminación masiva mediante `get_all_of_color/3` y la creación de nuevas bombas con `determinar_celda_bomba/2`.
-* *[Insertar Captura de Pantalla: Demostración de remoción masiva y creación de bombas]*
+* Antes:
+![alt text](<Captura de pantalla 2026-06-12 021315.png>)
+* Durante:
+![alt text](<Captura de pantalla 2026-06-12 021331.png>)
+![alt text](<Captura de pantalla 2026-06-12 021348.png>)
+* Después:
+![alt text](<Captura de pantalla 2026-06-12 021406.png>)
 
 ### Caso de Prueba 3: Detonación de Bomba y Expansión Periférica del Agua
-* **Descripción:** Caída y explosión de una bomba adyacente a un sector con agua. Se valida el ciclo de 2 Fases del Caso B: la explosión del área $3	imes3$ (`calcular_radio_explosion/4`) y la inmediata propagación dinámica del agua sobre las celdas liberadas (`propagar_agua_fixpoint/4`) previas a la gravedad.
-* *[Insertar Captura de Pantalla: Explosión 3x3 y propagación del agua sobre las celdas afectadas]*
+* **Descripción:** Activación de una bomba (mediante un lazo cerrado) adyacente a un sector con agua. Se valida el ciclo de 2 Fases del Caso B: la explosión del área 3x3 (`calcular_radio_explosion/4`) y la inmediata propagación dinámica del agua sobre las celdas liberadas (`propagar_agua_fixpoint/4`) previas a la gravedad.
+* Antes:
+![alt text](<Captura de pantalla 2026-06-12 021927.png>)
+![alt text](<Captura de pantalla 2026-06-12 021909.png>)
+* Durante:
+![alt text](<Captura de pantalla 2026-06-12 021950.png>)
+* Después:
+![alt text](<Captura de pantalla 2026-06-12 021950-1.png>)
