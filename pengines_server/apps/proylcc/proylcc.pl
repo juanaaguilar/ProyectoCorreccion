@@ -455,14 +455,12 @@ damage_nesting_dot_fase1([n1, ~], [b_act, ~]).
 % ==============================================================================
 % 8. MÓDULO DE LOGROS Y OBJETIVOS (UI)
 % ==============================================================================
-% Genera una nueva celda con un 15% de probabilidad de ser un Nesting Dot
+% Genera una nueva celda con un 5% de probabilidad de ser un Nesting Dot
 generate_random_cell(Cell) :-
     random(0, 100, R),
-    ( R < 15 -> 
-        % Cae un Nesting Dot. Puedes cambiar la lista si prefieres que 
-        % siempre nazcan en su fase máxima [n3] en lugar de aleatoria.
-        random_member(N, [n1, n2, n3]), 
-        Cell = [N]
+    ( R < 5 -> 
+        % Cae un Nesting Dot en su fase maxima. 
+        Cell = [n3]
     ;
         % Cae un punto de color normal (85% de probabilidad)
         available_colors(Colors), 

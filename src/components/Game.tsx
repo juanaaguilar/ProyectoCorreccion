@@ -29,7 +29,7 @@ function Game() {
   const [bombActivated, setBombActivated] = useState(false);
   const [bombExploded, setBombExploded] = useState(false);
   const [level, setLevel] = useState<number>(1);
-  const maxLevel = 2;
+  const maxLevel = 3;
   //preguntar si podemos borrar esto je
   //const { grid: historyGrid, objectives: historyObjectives } = useHistory({ grid: grid!, objectives, waiting });
   const [explosionData, setExplosionData] = useState<ExplosionData | null>(null);
@@ -59,16 +59,28 @@ function Game() {
 
 
   async function initGame(pe?: any, levelToLoad: number = level) {
-    const queryS = `init(Grid, NumOfColumns, Goals, Moves)`;
+    
+    // 1. Lógica dinámica: Si es el nivel 1, pedimos 'init'. Si es mayor, pedimos 'initX' (ej: init2)
+    const predicateName = levelToLoad === 1 ? 'init' : `init${levelToLoad}`;
+    
+    // 2. Inyectamos el nombre dinámico en la consulta usando template literals
+    const queryS = `${predicateName}(Grid, NumOfColumns, Goals, Moves)`;
+    
     const engine = pe || pengine;
     const response = await engine!.query(queryS);
+    if (!response) {
+       alert(`No se pudo cargar el nivel ${levelToLoad}. Revisa la consola para más detalles.`);
+       throw new Error(`Prolog falló o devolvió falso al ejecutar: ${queryS}`);
+    }
     setGrid(response['Grid']);
     setNumOfColumns(response['NumOfColumns']);
     setMoves(response['Moves']);
+    
     const objectives: Objectives = {};
     response['Goals'].forEach(([block, value]: [CellContent, number]) => {
       objectives[block] = value;
     });
+    
     setObjectives(objectives);
     setHistory([{
       grid: response['Grid'],
@@ -290,7 +302,13 @@ function Game() {
   async function goToNextLevel() {
     const next = Math.min(level + 1, maxLevel);
     setLevel(next);
-    await initGame(undefined, next);
+    try {
+      await initGame(undefined, next);
+    } catch (error) {
+      console.error("Falló al cargar el siguiente nivel:", error);
+      // Revertimos el contador de nivel si la consulta falló
+      setLevel(level); 
+    }
   }
 
   function goToMenu() {
