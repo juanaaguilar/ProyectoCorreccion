@@ -82,7 +82,12 @@ A fin de asegurar la robustez de la lógica implementada en Prolog y su correcto
 
 ### Caso de Prueba 1: Conexión Lineal Estándar, Caída por Gravedad y Reabastecimiento
 * **Descripción:** Selección de una línea simple de tres puntos del mismo color. Se verifica el funcionamiento del Caso A (sin bombas) de `connect/4`, constatando que `apply_gravity/3` y `fill_new_points/2` operen correctamente.
-* *[Insertar Captura de Pantalla: Comportamiento de gravedad lineal exitoso]*
+* Antes del movimiento: 
+![alt text](<Captura de pantalla 2026-06-12 005457-1.png>)
+* Durante:
+![alt text](<Captura de pantalla 2026-06-12 005515.png>)
+* Después:
+![alt text](<Captura de pantalla 2026-06-12 005528.png>)
 
 ### Caso de Prueba 2: Activación de Lazo Cerrado y Conversión a Bombas Internas
 * **Descripción:** Conexión en forma geométrica cerrada (cuadrado). Se constata la correcta ejecución de `is_closed_loop/1` y `find_inside_cells/4`, verificando la eliminación masiva mediante `get_all_of_color/3` y la creación de nuevas bombas con `determinar_celda_bomba/2`.
