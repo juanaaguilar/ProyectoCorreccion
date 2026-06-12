@@ -305,8 +305,8 @@ function Game() {
     try {
       await initGame(undefined, next);
     } catch (error) {
-      console.error("Falló al cargar el siguiente nivel:", error);
-      // Revertimos el contador de nivel si la consulta falló
+      console.error("Falló al cargar el siguiente nivel. ¿Reiniciaste el servidor Prolog?:", error);
+      // Esto evita que React cambie el número de nivel si la grilla falló
       setLevel(level); 
     }
   }
