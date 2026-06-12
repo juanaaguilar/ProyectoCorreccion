@@ -59,7 +59,7 @@ function Game() {
 
 
   async function initGame(pe?: any, levelToLoad: number = level) {
-    const queryS = `init(${levelToLoad}, Grid, NumOfColumns, Goals, Moves)`;
+    const queryS = `init(Grid, NumOfColumns, Goals, Moves)`;
     const engine = pe || pengine;
     const response = await engine!.query(queryS);
     setGrid(response['Grid']);
