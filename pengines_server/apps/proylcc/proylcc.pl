@@ -57,7 +57,6 @@
 % Ejecución en DOS fases para permitir que las bombas caigan antes de explotar.
 % connect(+Grid, +NumOfColumns, +Path, -Effects)
 connect(Grid, NumOfColumns, Path, Effects) :-
-    % 1. Identificar color y lazo
     [FirstIndex|_] = Path,
     nth0(FirstIndex, Grid, FirstCell),
     strip_water(FirstCell, [Color]),
@@ -68,63 +67,54 @@ connect(Grid, NumOfColumns, Path, Effects) :-
         get_all_of_color(Grid, Color, ExpandedPath),
         list_to_set(ExpandedPath, PathSet)
     ;
-        list_to_set(Path, PathSet),
-        InsideSet = [] 
+        list_to_set(Path, PathSet), InsideSet = [] 
     ),
     
     length(Grid, TotalCells),
     findall(Idx, (member(Idx, PathSet), nth0(Idx, Grid, Cell), is_bomb_cell(Cell)), PathBombs),
-    % Atrapamos los Nesting Dots de nivel 1 que van a recibir daño y convertirse en bombas
     append(InsideSet, PathSet, RemovedInF1),
     findall(Idx, (
-        nth0(Idx, Grid, Cell), 
-        is_n1_dot(Cell), 
+        nth0(Idx, Grid, Cell), is_n1_dot(Cell), 
         (memberchk(Idx, RemovedInF1) ; is_adjacent_to_cleared(Idx, NumOfColumns, TotalCells, RemovedInF1))
     ), N1BombsToExplode),
     
-    % Todas las bombas que DEBEN explotar en este turno
     append(InsideSet, PathBombs, TempBombs),
     append(TempBombs, N1BombsToExplode, AllBombsToExplode),
     list_to_set(AllBombsToExplode, UniqueBombsToActivate),
     
     ( UniqueBombsToActivate = [] ->
         % --- CASO A: SIN BOMBAS ---
-        procesar_celdas_impl(Grid, Grid, PathSet, [], NumOfColumns, TotalCells, 0, GridProcesada, 0, WaterN0, 0, ColorN),
+        procesar_celdas_impl(Grid, Grid, PathSet, [], NumOfColumns, TotalCells, 0, GridProcesada, 0, WaterN0, [], ColorsElim),
         propagar_agua(GridProcesada, NumOfColumns, GridConAgua),
         contar_agua_nueva(GridProcesada, GridConAgua, AguaPropagada),
         WaterN is WaterN0 + AguaPropagada,
         
         apply_gravity(GridConAgua, NumOfColumns, RawNewGrid),
-        
-        % Verificamos si hay movimientos y mezclamos si es necesario
         ensure_valid_moves(RawNewGrid, NumOfColumns, NewGrid, WasShuffled),
-        BaseEffect = effect(RawNewGrid, [achieved([[Color, ColorN], [~, WaterN]])]),
         
-        ( WasShuffled == true -> 
-            Effects = [BaseEffect, effect(NewGrid, [shuffled])]
-        ; 
-            Effects = [BaseEffect]
-        )
+        count_colors(ColorsElim, AchievedColors),
+        BaseEffect = effect(RawNewGrid, [achieved([[~, WaterN] | AchievedColors])]),
+        
+        ( WasShuffled == true -> Effects = [BaseEffect, effect(NewGrid, [shuffled])] ; Effects = [BaseEffect] )
         
     ;
        % --- CASO B: CON BOMBAS ---
-        subtract(PathSet, PathBombs, NormalPathSet),
-        procesar_celdas_fase1(Grid, Grid, NormalPathSet, UniqueBombsToActivate, NumOfColumns, TotalCells, 0, GridF1, 0, Water1, 0, Color1),
-        propagar_agua(GridF1, NumOfColumns, GridAgua1),
-        contar_agua_nueva(GridF1, GridAgua1, AguaProp1),
-        WaterTotal1 is Water1 + AguaProp1,
-        
-        apply_gravity(GridAgua1, NumOfColumns, IntermediateGridRaw),
-        get_active_bombs(IntermediateGridRaw, ActiveBombIndices),
-        normalize_grid(IntermediateGridRaw, IntermediateGrid),
-        
-        % Guardamos el fotograma 1 (La primera jugada, las bombas caen a su lugar)
-        BaseEffect = effect(IntermediateGrid, [achieved([[Color, Color1], [~, WaterTotal1]])]),
-        
-        % Invocamos el bucle mágico de cascada que devolverá el resto de los fotogramas
-        detonar_cascada(IntermediateGrid, ActiveBombIndices, NumOfColumns, TotalCells, Color, WaterTotal1, Color1, CascadeEffects),
-        
-        Effects = [BaseEffect | CascadeEffects]
+       subtract(PathSet, PathBombs, NormalPathSet),
+       procesar_celdas_fase1(Grid, Grid, NormalPathSet, UniqueBombsToActivate, NumOfColumns, TotalCells, 0, GridF1, 0, Water1, [], Colors1),
+       propagar_agua(GridF1, NumOfColumns, GridAgua1),
+       contar_agua_nueva(GridF1, GridAgua1, AguaProp1),
+       WaterTotal1 is Water1 + AguaProp1,
+       
+       apply_gravity(GridAgua1, NumOfColumns, IntermediateGridRaw),
+       get_active_bombs(IntermediateGridRaw, ActiveBombIndices),
+       normalize_grid(IntermediateGridRaw, IntermediateGrid),
+       
+       count_colors(Colors1, AchievedColors1),
+       BaseEffect = effect(IntermediateGrid, [achieved([[~, WaterTotal1] | AchievedColors1])]),
+       
+       detonar_cascada(IntermediateGrid, ActiveBombIndices, NumOfColumns, TotalCells, CascadeEffects),
+       
+       Effects = [BaseEffect | CascadeEffects]
     ).
 
 % ==============================================================================
@@ -134,26 +124,22 @@ connect(Grid, NumOfColumns, Path, Effects) :-
 procesar_celdas_impl(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
 procesar_celdas_impl(OriginalGrid, [Cell|Rest], CellsToClear, InsideSet, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
     ( is_obstacle_cell(Cell) ->
-        % 1. ESCUDO: Los obstáculos son inamovibles
-        NewCell = Cell, AccW1 is AccW, AccC1 is AccC
+        NewCell = Cell, AccW1 is AccW, AccC1 = AccC
     ; is_nesting_dot(Cell), (memberchk(Index, CellsToClear) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, CellsToClear)) ->
-        % 2. DAÑO: Los Nesting Dots reciben daño si están pegados a la jugada
         damage_nesting_dot(Cell, NewCell),
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ; memberchk(Index, CellsToClear) -> 
-        % 3. ELIMINACIÓN: Celdas normales en el camino
         ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) -> NewCell = [e, ~] ; NewCell = [e] ),
         calcula_agua_nueva(Cell, NewCell, IncW),
-        calcula_color_eliminado(Cell, IncC),
-        AccW1 is AccW + IncW, AccC1 is AccC + IncC
+        AccW1 is AccW + IncW,
+        extraer_color_real(Cell, CColor),
+        ( CColor \= none -> AccC1 = [CColor|AccC] ; AccC1 = AccC )
     ; memberchk(Index, InsideSet) ->
-        % 4. BOMBAS: Celdas encerradas en un cuadrado
         determinar_celda_bomba(Cell, NewCell),
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ;
-        % 5. DEFAULT: No le pasa nada
         NewCell = Cell,
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ),
     Index1 is Index + 1,
     procesar_celdas_impl(OriginalGrid, Rest, CellsToClear, InsideSet, NumOfColumns, TotalCells, Index1, NewRest, AccW1, FinalW, AccC1, FinalC).
@@ -161,22 +147,22 @@ procesar_celdas_impl(OriginalGrid, [Cell|Rest], CellsToClear, InsideSet, NumOfCo
 procesar_celdas_fase1(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
 procesar_celdas_fase1(OriginalGrid, [Cell|Rest], NormalPathSet, ActiveBombs, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
     ( is_obstacle_cell(Cell) ->
-        % ESCUDO: Los obstáculos son inamovibles
-        NewCell = Cell, AccW1 is AccW, AccC1 is AccC
+        NewCell = Cell, AccW1 is AccW, AccC1 = AccC
     ; is_nesting_dot(Cell), (memberchk(Index, NormalPathSet) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, NormalPathSet)) ->
         damage_nesting_dot_fase1(Cell, NewCell),
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ; memberchk(Index, NormalPathSet) ->
         ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) -> NewCell = [e, ~] ; NewCell = [e] ),
         calcula_agua_nueva(Cell, NewCell, IncW),
-        calcula_color_eliminado(Cell, IncC),
-        AccW1 is AccW + IncW, AccC1 is AccC + IncC
+        AccW1 is AccW + IncW,
+        extraer_color_real(Cell, CColor),
+        ( CColor \= none -> AccC1 = [CColor|AccC] ; AccC1 = AccC )
     ; memberchk(Index, ActiveBombs) ->
         determinar_bomba_activa(Cell, NewCell),
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ;
         NewCell = Cell,
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ),
     Index1 is Index + 1,
     procesar_celdas_fase1(OriginalGrid, Rest, NormalPathSet, ActiveBombs, NumOfColumns, TotalCells, Index1, NewRest, AccW1, FinalW, AccC1, FinalC).
@@ -320,77 +306,58 @@ aplica gravedad para que caigan a su nueva posición,
  y se vuelve a llamar a sí misma para detonarlas en el siguiente fotograma.*/
 
  
-% Caso base: Ya no hay bombas por detonar. Verificamos si hay que mezclar el tablero y terminamos.
-detonar_cascada(Grid, [], NumOfColumns, _, _, _, _, Effects) :-
+detonar_cascada(Grid, [], NumOfColumns, _, Effects) :-
     ensure_valid_moves(Grid, NumOfColumns, FinalGrid, WasShuffled),
-    ( WasShuffled == true ->
-        Effects = [effect(FinalGrid, [shuffled])]
-    ;
-        Effects = []
-    ).
+    ( WasShuffled == true -> Effects = [effect(FinalGrid, [shuffled])] ; Effects = [] ).
 
-% Caso recursivo: Hay bombas listas para detonar en este fotograma
-detonar_cascada(Grid, [Bomb|RestBombs], NumOfColumns, TotalCells, Color, AccWater, AccColor, [CurrentEffect | RestEffects]) :-
+detonar_cascada(Grid, [Bomb|RestBombs], NumOfColumns, TotalCells, [CurrentEffect | RestEffects]) :-
     BombsToExplode = [Bomb|RestBombs],
     
-    % 1. Calcular el radio de explosión actual
     calcular_radio_explosion(BombsToExplode, NumOfColumns, TotalCells, ExplosionSetRaw),
     list_to_set(ExplosionSetRaw, ExplosionSet),
 
-    % 2. Identificar bombas encadenadas (que están en el radio de la explosión pero no detonan HOY)
     findall(N, (
-        member(N, ExplosionSet),
-        nth0(N, Grid, Cell),
-        is_bomb_cell(Cell),
-        \+ memberchk(N, BombsToExplode)
+        member(N, ExplosionSet), nth0(N, Grid, Cell), is_bomb_cell(Cell), \+ memberchk(N, BombsToExplode)
     ), NextBombsRaw),
     list_to_set(NextBombsRaw, NextBombs),
 
-    % 3. Las bombas encadenadas sobreviven al radio de esta explosión (se detonarán en la próxima iteración)
     subtract(ExplosionSet, NextBombs, TrueCellsToClear),
 
-    % 4. Procesar la grilla (las que explotan se vacían, las encadenadas se marcan como "activas")
-    procesar_celdas_cascada(Grid, Grid, TrueCellsToClear, NextBombs, NumOfColumns, TotalCells, 0, ClearedGrid, 0, WaterInc, 0, ColorInc),
+    procesar_celdas_cascada(Grid, Grid, TrueCellsToClear, NextBombs, NumOfColumns, TotalCells, 0, ClearedGrid, 0, WaterInc, [], ColorsInc),
 
-    % 5. Agua y Gravedad
     propagar_agua(ClearedGrid, NumOfColumns, WaterGrid),
     contar_agua_nueva(ClearedGrid, WaterGrid, WaterProp),
-    NewAccWater is AccWater + WaterInc + WaterProp,
-    NewAccColor is AccColor + ColorInc,
+    TurnWater is WaterInc + WaterProp,
 
     apply_gravity(WaterGrid, NumOfColumns, GravGrid),
-
-    % 6. Buscar dónde cayeron las bombas encadenadas tras la gravedad y normalizar a bombas estándar
     get_active_bombs(GravGrid, NextActiveBombs),
     normalize_grid(GravGrid, FinalIterGrid),
 
-    % 7. Crear el EFECTO de la interfaz para ESTE turno
-    CurrentEffect = effect(FinalIterGrid, [achieved([[Color, NewAccColor], [~, NewAccWater]]), explosions(BombsToExplode, ExplosionSet)]),
+    count_colors(ColorsInc, TurnAchievedColors),
+    CurrentEffect = effect(FinalIterGrid, [achieved([[~, TurnWater] | TurnAchievedColors]), explosions(BombsToExplode, ExplosionSet)]),
 
-    % 8. Llamada recursiva: detonar las bombas encadenadas en la próxima iteración (fotograma)
-    detonar_cascada(FinalIterGrid, NextActiveBombs, NumOfColumns, TotalCells, Color, NewAccWater, NewAccColor, RestEffects).
-
+    detonar_cascada(FinalIterGrid, NextActiveBombs, NumOfColumns, TotalCells, RestEffects).
 
 % Procesador exclusivo para turnos de cascada
 procesar_celdas_cascada(_, [], _, _, _, _, _, [], WaterN, WaterN, ColorN, ColorN).
 procesar_celdas_cascada(OriginalGrid, [Cell|Rest], CellsToClear, BombsToActivate, NumOfColumns, TotalCells, Index, [NewCell|NewRest], AccW, FinalW, AccC, FinalC) :-
     ( is_obstacle_cell(Cell) ->
-        % ESCUDO: Los obstáculos son inamovibles, ignoran la onda expansiva
-        NewCell = Cell, AccW1 is AccW, AccC1 is AccC
+        NewCell = Cell, AccW1 is AccW, AccC1 = AccC
     ; is_nesting_dot(Cell), (memberchk(Index, CellsToClear) ; is_adjacent_to_cleared(Index, NumOfColumns, TotalCells, CellsToClear)) ->
         damage_nesting_dot_fase1(Cell, NewCell),
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ; memberchk(Index, BombsToActivate) ->
         determinar_bomba_activa(Cell, NewCell),
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ; memberchk(Index, CellsToClear) ->
         ( should_generate_water(OriginalGrid, Cell, Index, NumOfColumns, TotalCells) -> NewCell = [e, ~] ; NewCell = [e] ),
         calcula_agua_nueva(Cell, NewCell, IncW),
-        calcula_color_eliminado(Cell, IncC),
-        AccW1 is AccW + IncW, AccC1 is AccC + IncC
+        AccW1 is AccW + IncW,
+        extraer_color_real(Cell, CColor),
+        ( CColor \= none -> AccC1 = [CColor|AccC] ; AccC1 = AccC )
     ;
         NewCell = Cell,
-        AccW1 is AccW, AccC1 is AccC
+        AccW1 is AccW, AccC1 = AccC
     ),
     Index1 is Index + 1,
     procesar_celdas_cascada(OriginalGrid, Rest, CellsToClear, BombsToActivate, NumOfColumns, TotalCells, Index1, NewRest, AccW1, FinalW, AccC1, FinalC).
@@ -488,24 +455,36 @@ damage_nesting_dot_fase1([n1, ~], [b_act, ~]).
 % ==============================================================================
 % 8. MÓDULO DE LOGROS Y OBJETIVOS (UI)
 % ==============================================================================
+% Genera una nueva celda con un 15% de probabilidad de ser un Nesting Dot
+generate_random_cell(Cell) :-
+    random(0, 100, R),
+    ( R < 15 -> 
+        % Cae un Nesting Dot. Puedes cambiar la lista si prefieres que 
+        % siempre nazcan en su fase máxima [n3] en lugar de aleatoria.
+        random_member(N, [n1, n2, n3]), 
+        Cell = [N]
+    ;
+        % Cae un punto de color normal (85% de probabilidad)
+        available_colors(Colors), 
+        random_member(Color, Colors),
+        Cell = [Color]
+    ).
+
+fill_new_points(0, []) :- !.
+fill_new_points(Count, [Cell|Rest]) :-
+    Count > 0,
+    generate_random_cell(Cell),
+    Count1 is Count - 1,
+    fill_new_points(Count1, Rest).
 
 calcula_agua_nueva(OldCell, NewCell, 1) :- \+ has_water(OldCell), has_water(NewCell), !.
 calcula_agua_nueva(_, _, 0).
-
-calcula_color_eliminado(Cell, 1) :- is_point_cell(Cell), !.
-calcula_color_eliminado(_, 0).
 
 contar_agua_nueva([], [], 0).
 contar_agua_nueva([OldCell|OldRest], [NewCell|NewRest], Total) :-
     contar_agua_nueva(OldRest, NewRest, SubTotal),
     ( OldCell = [e], NewCell = [e, ~] -> Total is SubTotal + 1 ; Total is SubTotal ).
 
-fill_new_points(0, []) :- !.
-fill_new_points(Count, [[Color]|Rest]) :-
-    Count > 0,
-    available_colors(Colors), random_member(Color, Colors),
-    Count1 is Count - 1,
-    fill_new_points(Count1, Rest).
 
 % ==============================================================================
 % 9. MÓDULO DE REORDENAMIENTO (SHUFFLE)
@@ -588,3 +567,27 @@ rebuild_shuffled_grid([p|RestS], [[C]|RestP], [[C]|RestGrid]) :-
     !, rebuild_shuffled_grid(RestS, RestP, RestGrid).
 rebuild_shuffled_grid([Cell|RestS], Points, [Cell|RestGrid]) :-
     rebuild_shuffled_grid(RestS, Points, RestGrid).
+
+% ==============================================================================
+% 10. UTILIDADES PARA EXTRAER Y CONTAR COLORES MULTIPLES
+% ==============================================================================
+
+% Extrae el color válido para los objetivos. Ignora bombas vacías y nesting dots.
+extraer_color_real(Cell, Color) :-
+    available_colors(Colors),
+    strip_water(Cell, [Color]),
+    memberchk(Color, Colors), !.
+extraer_color_real(_, none).
+
+% Convierte una lista plana [r, g, r] en formato de objetivos [[r, 2], [g, 1]]
+count_colors([], []).
+count_colors([C|Rest], Result) :-
+    count_colors(Rest, SubResult),
+    add_color_count(C, SubResult, Result).
+
+add_color_count(Color, [], [[Color, 1]]).
+add_color_count(Color, [[Color, Count]|Rest], [[Color, NewCount]|Rest]) :- 
+    NewCount is Count + 1, !.
+add_color_count(Color, [[Other, Count]|Rest], [[Other, Count]|NewRest]) :-
+    Color \= Other,
+    add_color_count(Color, Rest, NewRest).
